@@ -189,9 +189,10 @@ auto-detected; use `--front=+y` etc. for the door side), simplifies and places a
 model in `sim-web/assets/`; the front panel (not a pendant arm or tray sticking out) lands on
 the door plane, and `--lift` raises the model to match the published table height (the
 GrabCAD Haas model needs `--lift 44`). It is visual only. `sim-web/assets/` is git-ignored because
-downloaded models belong to their authors; this private repository includes the imported Haas
-model (force-added) so the 3D view works after a clone. Remove it before making the repository
-public.
+downloaded models belong to their authors. This repository includes one imported model
+(force-added) so the 3D view works after a clone: a Haas Mini Mill model downloaded from GrabCAD,
+converted to STL and simplified. It remains the work of its original author and is included
+for visualisation only; it is not covered by this project's licence.
 
 ## Layout
 
