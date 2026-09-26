@@ -12,6 +12,10 @@ are data profiles under `config/`, so others can be added without code changes.
 > build (constructing one raises `PhysicalCommandPathDisabled`). Many layout and vise
 > dimensions are still assumed; every job stays `provisional` until they are measured.
 
+## Purpose
+
+Automated Soft-Jaw Cell automates jaw machining and CNC tending, repetitive, low-skill work, so it runs unattended during otherwise idle machine time. It is built for machinists with variable schedules, a day job plus a home or small shop on evenings and weekends, and gives them back their most limited resource: time for higher-value work like fixturing, programming, and process development.
+
 ## Quick start
 
 ```bash
