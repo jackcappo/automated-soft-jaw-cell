@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1117">
+  <title>Soft Jaw Cell Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Digital twin / layout prototype</p>
+        <h1>Soft Jaw Cell</h1>
+      </div>
+      <div class="topbar-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="run-status">Ready</span>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="controls" aria-label="Simulation controls">
+        <div class="control-section">
+          <span class="section-label">Cell profile</span>
+          <strong>Haas Mini Mill</strong>
+          <span class="muted">B601-DM · 5 in VEVOR vise</span>
+        </div>
+
+        <div class="control-section">
+          <span class="section-label">Sequence</span>
+          <div class="button-row">
+            <button id="play-button" class="primary" type="button">Run cycle</button>
+            <button id="reset-button" type="button">Reset</button>
+          </div>
+          <p id="step-detail" class="step-detail" aria-live="polite">Cell is ready for a simulated cycle.</p>
+        </div>
+
+        <div class="control-section telemetry" aria-label="Cell telemetry">
+          <span class="section-label">Live state</span>
+          <dl>
+            <div><dt>Robot</dt><dd id="robot-state">Idle</dd></div>
+            <div><dt>CNC door</dt><dd id="door-state">Closed</dd></div>
+            <div><dt>Spindle</dt><dd id="spindle-state">Stopped</dd></div>
+            <div><dt>Gripper</dt><dd id="gripper-state">Open</dd></div>
+            <div><dt>Payload</dt><dd id="payload-state">None</dd></div>
+          </dl>
+        </div>
+
+        <details class="control-section joints">
+          <summary>Manual joint control</summary>
+          <p class="muted">Pause the cycle before adjusting joints.</p>
+          <div id="joint-controls"></div>
+        </details>
+
+        <div class="legend control-section">
+          <span class="section-label">Scene</span>
+          <span><i class="swatch robot"></i>B601-DM kinematic model</span>
+          <span><i class="swatch blank"></i>Delrin jaw blanks</span>
+          <span><i class="swatch zone"></i>Robot exchange zone</span>
+        </div>
+      </aside>
+
+      <div class="viewport-wrap">
+        <canvas id="render-canvas" aria-label="Interactive 3D simulation of a B601-DM robot tending a Haas Mini Mill"></canvas>
+        <div class="viewport-help">Drag to orbit · wheel to zoom · right-drag to pan</div>
+        <ol id="timeline" class="timeline" aria-label="Cycle progress"></ol>
+      </div>
+    </section>
+  </main>
+
+  <script src="vendor/babylon.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
