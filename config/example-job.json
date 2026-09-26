@@ -1,0 +1,36 @@
+{
+  "job_id": "example-001",
+  "units": "mm",
+  "part": {
+    "step_file": "cad/part.step",
+    "part_pose_in_vise": [
+      [1.0, 0.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0, 0.0],
+      [0.0, 0.0, 1.0, 18.0],
+      [0.0, 0.0, 0.0, 1.0]
+    ],
+    "approved_contact_faces": [],
+    "protected_faces": []
+  },
+  "fixture": {
+    "vise_step_file": "cad/vise.step",
+    "left_blank_step_file": "cad/left_blank.step",
+    "right_blank_step_file": "cad/right_blank.step",
+    "grip_height_mm": 12.0,
+    "max_cavity_depth_mm": 8.0,
+    "cavity_clearance_mm": 0.15,
+    "minimum_wall_mm": 4.0,
+    "corner_relief_radius_mm": 3.2,
+    "keepout_step_files": []
+  },
+  "process": {
+    "expected_force_n": [250.0, 250.0, 150.0],
+    "cutter_diameter_mm": 6.0,
+    "maximum_cutter_reach_mm": 25.0,
+    "stock_material": "Delrin"
+  },
+  "outputs": {
+    "directory": "output/example-001",
+    "formats": ["step", "stl", "json"]
+  }
+}
