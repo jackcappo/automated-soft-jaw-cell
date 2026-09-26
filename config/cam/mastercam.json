@@ -1,0 +1,33 @@
+{
+  "profile_version": 1,
+  "id": "mastercam-first-adapter",
+  "vendor": "Mastercam",
+  "output_contract": {
+    "geometry_format": "STEP AP242",
+    "mesh_preview_format": "STL",
+    "manifest_format": "JSON",
+    "coordinate_system": "jaw_setup_wcs",
+    "required_named_bodies": [
+      "LEFT_JAW_FINISHED",
+      "RIGHT_JAW_FINISHED",
+      "LEFT_JAW_STOCK",
+      "RIGHT_JAW_STOCK",
+      "PART_REFERENCE",
+      "VISE_KEEPOUT"
+    ]
+  },
+  "pilot_workflow": {
+    "method": "manual_import_and_review",
+    "soft_jaw_plugin": "CloudNC Soft Jaw Designer",
+    "plugin_url": "https://www.cloudnc.com/soft-jaw-designer",
+    "post_processor": "haas_3x_specific_post_required",
+    "automatic_posting_enabled": false,
+    "automatic_transfer_to_cnc_enabled": false
+  },
+  "future_direct_adapter": {
+    "method": "Mastercam SDK add-in",
+    "developer_program_url": "https://www.mastercam.com/community/3rd-party-developers/",
+    "status": "not_implemented"
+  }
+}
+
