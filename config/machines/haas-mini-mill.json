@@ -1,0 +1,55 @@
+{
+  "profile_version": 1,
+  "id": "haas-mini-mill-current",
+  "manufacturer": "Haas Automation",
+  "model": "Mini Mill",
+  "units": "mm",
+  "source": {
+    "url": "https://www.haascnc.com/machines/vertical-mills/mini-mills/models/minimill.html",
+    "retrieved": "2026-09-25",
+    "note": "Current-generation published specifications; verify the physical machine year and options."
+  },
+  "travels": {
+    "x": 406.0,
+    "y": 356.0,
+    "z": 381.0
+  },
+  "table": {
+    "length": 914.0,
+    "width": 305.0,
+    "t_slot_count": 3,
+    "t_slot_width_min": 15.9,
+    "t_slot_width_max": 16.0,
+    "t_slot_center_distance": 110.0,
+    "maximum_load_kg": 227.0
+  },
+  "spindle": {
+    "taper": "CT40 or BT40",
+    "maximum_speed_rpm": 8000,
+    "nose_to_table_min": 102.0,
+    "nose_to_table_max": 483.0
+  },
+  "automation": {
+    "door_type": "unverified",
+    "robot_exchange_pose": null,
+    "controller_generation": "unverified",
+    "robot_interface_option_installed": "unverified",
+    "signals": {
+      "cycle_start": "unmapped",
+      "feed_hold": "unmapped",
+      "cycle_complete": "unmapped",
+      "alarm": "unmapped",
+      "door_open": "unmapped",
+      "door_closed": "unmapped",
+      "spindle_stopped": "unmapped",
+      "axes_at_exchange_pose": "unmapped"
+    }
+  },
+  "simulation_assets": {
+    "official_model_url": null,
+    "local_model": null,
+    "collision_model": null,
+    "status": "required"
+  }
+}
+
