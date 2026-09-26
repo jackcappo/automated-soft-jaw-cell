@@ -1,0 +1,15 @@
+{
+  "profile_version": 1,
+  "kind": "gripper",
+  "id": "placeholder-parallel",
+  "status": "placeholder - replace with your gripper CAD",
+  "units": "mm",
+  "mass_kg": 0.35,
+  "finger_stroke_per_side": 50.0,
+  "finger_length": 120.0,
+  "finger_width": 20.0,
+  "finger_grip_depth": 12.0,
+  "tcp_from_flange": 155.39,
+  "note": "Values follow the stock B601-DM gripper (end_link at 155.39 mm, prismatic fingers 0-50 mm each). Grip depth is how far the fingertips wrap down the blank; it must fit in the blank area left exposed above the hard jaws.",
+  "finger_width_note": "Stock B601 fingers are about 26 mm wide. 20 mm is a design recommendation: it leaves room beside pockets up to about 85 mm wide on a 125 mm jaw. Replace with your gripper CAD value."
+}

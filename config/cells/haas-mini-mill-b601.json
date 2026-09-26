@@ -1,0 +1,82 @@
+{
+  "profile_version": 1,
+  "kind": "cell",
+  "id": "haas-mini-mill-b601-rack6",
+  "units": "mm",
+  "world_frame": "origin on the floor at the centre of the door opening, on the machine's front face; +X into the machine, +Y to the operator's left, +Z up",
+  "profiles": {
+    "machine": "config/machines/haas-mini-mill.json",
+    "vise": "config/vises/vevor-5in-accu-lock.json",
+    "robot": "config/robots/rebot-b601-dm.json",
+    "gripper": "config/grippers/placeholder-parallel.json",
+    "blank": "config/blanks/delrin-125x45x25.json"
+  },
+  "robot_base": {
+    "xyz": {
+      "value": [
+        -165.0,
+        0.0,
+        860.0
+      ],
+      "status": "estimated"
+    },
+    "yaw_rad": 0.0,
+    "note": "Pedestal centred on the door opening, flange just outside the front face"
+  },
+  "vise_on_table": {
+    "offset_from_table_center": {
+      "value": [
+        0.0,
+        0.0
+      ],
+      "status": "assumed"
+    },
+    "clamp_axis": "world X (fixed jaw toward the back of the machine)",
+    "seat_height_above_table": {
+      "value": 98.0,
+      "status": "estimated"
+    }
+  },
+  "rack": {
+    "origin": {
+      "value": [
+        -520.0,
+        -250.0,
+        760.0
+      ],
+      "status": "estimated"
+    },
+    "slot_count": 6,
+    "slot_pitch_x": 60.0,
+    "blank_orientation": "standing, thickness along world X, width along world Y (same as in the vise)",
+    "note": "Slot k base is at origin + (k * pitch, 0, 0). Each slot holds one blank; left/right jaws use adjacent slots."
+  },
+  "clearances": {
+    "approach_height": 90.0,
+    "door_transit": [
+      -20.0,
+      60.0,
+      1000.0
+    ],
+    "home_tcp": [
+      -120.0,
+      -60.0,
+      960.0
+    ],
+    "note": "home keeps every robot link at x < -50 (outside the front wall); both points were chosen from a reachability sweep"
+  },
+  "exchange_volume": {
+    "x": [
+      0,
+      420
+    ],
+    "y": [
+      -350,
+      350
+    ],
+    "z": [
+      650,
+      1450
+    ]
+  }
+}

@@ -12,7 +12,7 @@ Record all values in millimeters:
 |---|---:|---:|
 | Existing jaw width | | |
 | Existing jaw height | | |
-| Existing jaw thickness | | |
+| Existing jaw thickness (= `hard_jaw_thickness`) | | |
 | Number of mounting bolts | | |
 | Bolt thread and pitch | | |
 | Horizontal bolt center spacing | | |
@@ -28,6 +28,10 @@ Also record:
 - Vise body length and width with the swivel base removed.
 - Height from table to the top of the vise body and to the jaw seat.
 - Maximum opening with the proposed thick soft jaws installed.
+- Parallel height that puts a standing blank's pocket zone above the hard jaws
+  (`robot_machining_setup.parallel_height`).
+- How far the moving jaw must open for the robot to drop a blank in
+  (`robot_machining_setup.loading_open_gap_extra`).
 - Leadscrew input geometry for the pneumatic drive: shaft shape, across-flat or
   hex dimension, available axial clearance, and required open/close turns.
 - Measured torque needed to grip a Delrin blank without permanent deformation.
@@ -36,8 +40,7 @@ Also record:
 Photograph the fixed-jaw seat, moving-jaw seat, bolt holes, leadscrew input, and
 vise mounted on the Mini Mill table with a scale visible.
 
-After measuring, copy the values into
-`config/vises/vevor-5in-accu-lock.json`. The profile must not move from
+After measuring, copy the values into `config/vises/vevor-5in-accu-lock.json` and
+change each `status` from `assumed` to `measured`. The profile must not move from
 `measurement_required` to `verified` until a printed or scrap test jaw bolts on,
 seats fully, and repeats after removal and reinstallation.
-

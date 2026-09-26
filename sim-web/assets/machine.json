@@ -1,0 +1,16 @@
+{
+  "source": "Mini-Mill-Haas.stl",
+  "source_units": "mm",
+  "source_up_axis": "y",
+  "door_side": "-y",
+  "triangles_in": 48800,
+  "triangles_out": 38727,
+  "cluster_mm": 8.0,
+  "size_mm": {
+    "depth_x": 1832.8,
+    "width_y": 1513.9,
+    "height_z": 2097.0
+  },
+  "placement": "floor at Z=0, front face at X=0, centred on Y=0 (door opening)",
+  "use": "visual only; collision uses config/machines/*.json boxes"
+}

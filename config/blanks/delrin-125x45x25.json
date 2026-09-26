@@ -1,0 +1,14 @@
+{
+  "profile_version": 1,
+  "kind": "blank",
+  "id": "delrin-125x45x25",
+  "material": "Delrin (acetal homopolymer, POM-H)",
+  "units": "mm",
+  "density_g_cm3": 1.41,
+  "friction_coefficient_on_part": 0.2,
+  "width": {"value": 125.0, "status": "assumed", "note": "matches the published 125 mm jaw width"},
+  "height": {"value": 45.0, "status": "assumed"},
+  "thickness": {"value": 25.0, "status": "assumed"},
+  "pre_drilled_mounting_holes": true,
+  "note": "Blanks arrive with mounting holes and counterbores already drilled (made in batches or bought), because a standing blank in a 3-axis mill cannot have horizontal holes drilled. The cell only machines the part cavity."
+}

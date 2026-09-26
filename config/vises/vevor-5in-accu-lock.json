@@ -1,5 +1,6 @@
 {
-  "profile_version": 1,
+  "profile_version": 2,
+  "kind": "vise",
   "id": "vevor-tq5cdxzdzjmpkq001v0",
   "manufacturer": "VEVOR",
   "model": "5 Inch ACCU Lock Down Vise",
@@ -9,30 +10,77 @@
     "url": "https://www.vevor.com/mill-vise-c_10811/5-milling-machine-lockdown-vise-swivel-base-swivel-base-hardened-metal-cnc-p_010165314250",
     "retrieved": "2026-09-25"
   },
+  "status_legend": "published = manufacturer data; measured = checked on the real vise; assumed = placeholder that blocks production release",
   "published": {
-    "jaw_width": 125.0,
-    "maximum_opening": 125.0,
-    "jaw_height": 40.0,
-    "maximum_clamping_force_n": 24000.0,
+    "jaw_width": {
+      "value": 125.0,
+      "status": "published"
+    },
+    "maximum_opening": {
+      "value": 125.0,
+      "status": "published"
+    },
+    "jaw_height": {
+      "value": 40.0,
+      "status": "published"
+    },
+    "maximum_clamping_force_n": {
+      "value": 24000.0,
+      "status": "published"
+    },
     "approximate_envelope": {
       "length": 350.5,
       "width": 228.6,
-      "height": 138.7
+      "height": 138.7,
+      "status": "published"
     }
   },
   "jaw_interface": {
-    "blank_width": null,
-    "blank_height": null,
-    "blank_thickness": null,
-    "bolt_count_per_jaw": null,
-    "bolt_thread": null,
-    "bolt_center_spacing": null,
-    "bolt_vertical_offset_from_bottom": null,
-    "counterbore_diameter": null,
-    "counterbore_depth": null,
-    "locating_step_width": null,
-    "locating_step_height": null,
+    "note": "Replaceable-jaw mounting pattern is NOT published. Values below are typical 5-inch vise placeholders. Complete docs/vevor-vise-measurement-sheet.md and change each status to measured.",
+    "bolt_count_per_jaw": {
+      "value": 2,
+      "status": "assumed"
+    },
+    "bolt_thread": {
+      "value": "M8x1.25",
+      "status": "assumed"
+    },
+    "bolt_center_spacing": {
+      "value": 80.0,
+      "status": "assumed"
+    },
+    "bolt_center_height_from_jaw_bottom": {
+      "value": 14.0,
+      "status": "assumed"
+    },
+    "counterbore_diameter": {
+      "value": 14.0,
+      "status": "assumed"
+    },
+    "counterbore_depth": {
+      "value": 8.5,
+      "status": "assumed"
+    },
     "fit_status": "measurement_required"
+  },
+  "robot_machining_setup": {
+    "note": "The robot does not bolt jaws on. Each Delrin blank is clamped standing up in the hardened jaws, on a parallel, so the pocket region protrudes above the hard jaws and the cutter never reaches steel.",
+    "hard_jaw_height": {
+      "value": 40.0,
+      "status": "published"
+    },
+    "parallel_height": {
+      "value": 12.0,
+      "status": "assumed"
+    },
+    "loading_open_gap_extra": {
+      "value": 6.0,
+      "status": "assumed"
+    },
+    "hard_jaw_thickness": {
+      "value": 18.0,
+      "status": "assumed"
+    }
   },
   "pneumatic_actuator": {
     "type": "external_leadscrew_drive_tbd",
@@ -41,8 +89,10 @@
     "clamp_pressure_input": "required",
     "command_open_output": "required",
     "command_close_output": "required",
-    "maximum_allowed_torque_nm": null,
-    "maximum_allowed_pressure_bar": null,
+    "delrin_blank_clamp_force_n": {
+      "value": 3000.0,
+      "status": "assumed"
+    },
     "status": "design_required"
   },
   "simulation_assets": {
@@ -52,4 +102,3 @@
     "collision_model": null
   }
 }
-

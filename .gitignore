@@ -4,8 +4,13 @@ __pycache__/
 .mypy_cache/
 .venv/
 venv/
-output/
+node_modules/
 *.log
 .DS_Store
 Thumbs.db
 
+# generated outputs (regenerate with python -m softjaw ...)
+output/
+
+# downloaded third-party CAD (e.g. the GrabCAD Haas model) - owned by its authors, do not commit
+sim-web/assets/

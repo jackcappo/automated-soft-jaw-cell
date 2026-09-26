@@ -1,5 +1,6 @@
 {
-  "profile_version": 1,
+  "profile_version": 2,
+  "kind": "machine",
   "id": "haas-mini-mill-current",
   "manufacturer": "Haas Automation",
   "model": "Mini Mill",
@@ -9,47 +10,39 @@
     "retrieved": "2026-09-25",
     "note": "Current-generation published specifications; verify the physical machine year and options."
   },
-  "travels": {
-    "x": 406.0,
-    "y": 356.0,
-    "z": 381.0
-  },
+  "travels": {"x": {"value": 406.0, "status": "published"}, "y": {"value": 356.0, "status": "published"}, "z": {"value": 381.0, "status": "published"}},
   "table": {
-    "length": 914.0,
-    "width": 305.0,
-    "t_slot_count": 3,
-    "t_slot_width_min": 15.9,
-    "t_slot_width_max": 16.0,
-    "t_slot_center_distance": 110.0,
+    "length": {"value": 914.0, "status": "published"},
+    "width": {"value": 305.0, "status": "published"},
+    "t_slot_count": 3, "t_slot_width_min": 15.9, "t_slot_width_max": 16.0, "t_slot_center_distance": 110.0,
     "maximum_load_kg": 227.0
   },
-  "spindle": {
-    "taper": "CT40 or BT40",
-    "maximum_speed_rpm": 8000,
-    "nose_to_table_min": 102.0,
-    "nose_to_table_max": 483.0
+  "spindle": {"taper": "CT40 or BT40", "maximum_speed_rpm": 8000,
+              "nose_to_table_min": {"value": 102.0, "status": "published"},
+              "nose_to_table_max": {"value": 483.0, "status": "published"}},
+  "enclosure_estimates": {
+    "note": "Everything here is an estimate for the reach/collision study. Measure your machine and change status to measured.",
+    "table_top_height_from_floor": {"value": 760.0, "status": "estimated"},
+    "door_opening_width": {"value": 700.0, "status": "estimated"},
+    "door_opening_bottom_from_floor": {"value": 650.0, "status": "estimated"},
+    "door_opening_top_from_floor": {"value": 1450.0, "status": "estimated"},
+    "front_wall_to_table_center": {"value": 302.5, "status": "estimated"},
+    "spindle_head_width": {"value": 160.0, "status": "estimated"},
+    "spindle_head_depth": {"value": 145.0, "status": "estimated"}
   },
   "automation": {
+    "robot_exchange_pose": {
+      "note": "Table jog before robot entry so the vise is out from under the spindle and closer to the door. Uses Y travel toward the door and X travel sideways; keep inside published travels.",
+      "table_shift_toward_door": {"value": 100.0, "status": "assumed"},
+      "table_shift_sideways": {"value": 150.0, "status": "assumed"},
+      "spindle_at_z_home": true
+    },
     "door_type": "unverified",
-    "robot_exchange_pose": null,
     "controller_generation": "unverified",
     "robot_interface_option_installed": "unverified",
     "signals": {
-      "cycle_start": "unmapped",
-      "feed_hold": "unmapped",
-      "cycle_complete": "unmapped",
-      "alarm": "unmapped",
-      "door_open": "unmapped",
-      "door_closed": "unmapped",
-      "spindle_stopped": "unmapped",
-      "axes_at_exchange_pose": "unmapped"
+      "cycle_start": "unmapped", "feed_hold": "unmapped", "cycle_complete": "unmapped", "alarm": "unmapped",
+      "door_open": "unmapped", "door_closed": "unmapped", "spindle_stopped": "unmapped", "axes_at_exchange_pose": "unmapped"
     }
-  },
-  "simulation_assets": {
-    "official_model_url": null,
-    "local_model": null,
-    "collision_model": null,
-    "status": "required"
   }
 }
-

@@ -1,0 +1,71 @@
+{
+  "job_id": "flanged-hub",
+  "description": "\u00d880 flange + \u00d850 hub, gripped on the flange edge",
+  "expected_status": "provisional",
+  "units": "mm",
+  "resolution_mm": 0.05,
+  "part": {
+    "file": "examples/parts/flanged_hub.stl",
+    "pose_in_vise": [
+      [
+        1,
+        0,
+        0,
+        0.0
+      ],
+      [
+        0,
+        1,
+        0,
+        0.0
+      ],
+      [
+        0,
+        0,
+        1,
+        32.0
+      ],
+      [
+        0,
+        0,
+        0,
+        1
+      ]
+    ],
+    "approved_grip": {
+      "from_part_bottom_mm": 0,
+      "height_mm": 7.5
+    }
+  },
+  "profiles": {
+    "vise": "config/vises/vevor-5in-accu-lock.json",
+    "blank": "config/blanks/delrin-125x45x25.json",
+    "gripper": "config/grippers/placeholder-parallel.json",
+    "robot": "config/robots/rebot-b601-dm.json",
+    "cam": "config/cam/mastercam.json",
+    "machine": "config/machines/haas-mini-mill.json"
+  },
+  "fixture": {
+    "nest_depth_mm": 8.0,
+    "minimum_jaw_gap_mm": 2.0,
+    "cavity_clearance_mm": 0.15,
+    "minimum_wall_mm": 4.0,
+    "max_cavity_depth_mm": 20.0,
+    "min_part_protrusion_mm": 3.0,
+    "min_locking_contact_mm": 2.0
+  },
+  "process": {
+    "expected_force_n": [
+      250.0,
+      250.0,
+      150.0
+    ],
+    "safety_factor": 2.0,
+    "part_clamp_force_n": 8000.0,
+    "cutter_diameter_mm": 6.0,
+    "maximum_cutter_reach_mm": 25.0
+  },
+  "outputs": {
+    "directory": "output/flanged_hub"
+  }
+}

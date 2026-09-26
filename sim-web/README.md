@@ -1,57 +1,46 @@
 # Browser cell simulator
 
-This is the first runnable digital-twin shell for the automated soft-jaw cell.
-It models the Haas Mini Mill envelope, VEVOR vise, blank rack, Delrin blanks,
-and reBot B601-DM motion sequence.
+Replays the verified plan for the soft-jaw cell. It decides nothing itself:
 
-The B601-DM joint origins, joint axes, and limits are taken from Seeed's
-published `ReBot_Arm_DM.urdf`. Link shapes are intentionally simplified for the
-layout prototype; they are not collision-certified geometry.
+- every robot pose comes from the planner's IK paths (`softjaw/cellplan.py`), which were
+  collision-checked against the cell boxes;
+- every device state (door, spindle, vise, gripper, rack) comes from the world snapshots
+  in the cell controller's event log (`softjaw/orchestrator.py`).
 
 ## Run
 
-From this directory:
-
-```powershell
-python -m http.server 8070
+```bash
+python -m softjaw jaws hex_fitting   # once, to create the jaw manifest
+python -m softjaw sim                # writes cell-plan.js
+cd sim-web && python -m http.server 8070
 ```
 
-Open <http://localhost:8070>.
+Open <http://localhost:8070>. Babylon.js 7.54.3 loads from jsDelivr; to work offline,
+save https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js as `vendor/babylon.js`.
+`python -m softjaw bundle` writes a single self-contained HTML file.
 
-The simulator is self-contained and does not require npm. Babylon.js is vendored
-under `vendor/` so the scene works offline.
+## Features
 
-## Implemented
+- Scenario picker: the nominal cycle plus one run per injected fault
+  (lost grip, occupied slot, door/clamp disagreement, CNC alarm, timeout, comms loss,
+  spindle not stopped). Faults end in SAFE_STOP with a banner explaining why.
+- Live state, event log, cycle timeline, playback speed (machining runs 6x faster).
+- Robot drawn as its collision capsules, so what you see is what the planner checked.
+- Manual joint sliders (pause playback).
+- Optional detailed machine model: run `tools/import_machine_model.py` to create
+  `assets/machine.stl`. It replaces the plain enclosure walls visually; collision still
+  uses the measured boxes. The model is git-ignored (third-party CAD).
 
-- Orbit, pan, and zoom around the cell.
-- B601-DM six-joint kinematic chain and joint-limit sliders.
-- Simplified Haas Mini Mill, table, vise, exchange volume, and sliding door.
-- Six-slot Delrin blank rack.
-- Animated rack-to-CNC-to-rack sequence.
-- Simulated door, spindle, gripper, and payload state.
-- Pause, reset, and manual joint inspection.
+## Limitations
 
-## Known limitations
+- Broad-phase collision model; not a substitute for verified meshes before commissioning.
+- Layout dimensions are estimates until measured (see `docs/MEASUREMENTS.md`).
+- The gripper is a placeholder; replace `config/grippers/placeholder-parallel.json` with
+  values from your gripper CAD.
+- No real machine or robot interface exists.
 
-- Sequence poses are provisional joint-space waypoints, not IK-planned paths.
-- Machine, vise, rack, and robot links use simplified geometry.
-- There is no physics, collision rejection, reach study, or cycle-time model.
-- The current gripper is a placeholder matching the stock parallel-gripper
-  envelope. Replace it when the production gripper CAD is ready.
-- No real machine or robot interface exists in this browser simulator.
+## Tests
 
-## Next simulation milestone
-
-1. Replace simplified robot solids with official visual/collision meshes.
-2. Move scene transforms to a versioned cell-layout configuration file.
-3. Add TCP targets and numerical inverse kinematics.
-4. Add broad-phase collision checks for robot, machine, vise, rack, and payload.
-5. Export the validated layout and named waypoints to ROS 2 / MoveIt 2.
-
-## Sources
-
-- B601-DM URDF and ROS 2 project:
-  https://github.com/Seeed-Projects/reBotArmController_ROS2
-- Haas Mini Mill specifications:
-  https://www.haascnc.com/machines/vertical-mills/mini-mills/models/minimill.html
-
+`node ../tools/sim_smoke_test.js` plays every scenario headlessly (Babylon and the DOM are
+stubbed) and checks the final state and banner. Set `WITH_MODEL=path/to/machine.stl` to
+also test model loading. The Python suite checks the JS kinematics against Python to 1e-6 mm.

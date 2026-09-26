@@ -1,33 +1,29 @@
 {
-  "profile_version": 1,
+  "profile_version": 2,
+  "kind": "cam",
   "id": "mastercam-first-adapter",
   "vendor": "Mastercam",
   "output_contract": {
-    "geometry_format": "STEP AP242",
-    "mesh_preview_format": "STL",
+    "pocket_chain_format": "DXF R12 (layers POCKET, STOCK, FACE_EDGE)",
+    "mesh_format": "binary STL (inspection solid of each finished jaw)",
+    "exact_solid_format": "STEP AP214 when CadQuery is installed (optional)",
     "manifest_format": "JSON",
-    "coordinate_system": "jaw_setup_wcs",
-    "required_named_bodies": [
-      "LEFT_JAW_FINISHED",
-      "RIGHT_JAW_FINISHED",
-      "LEFT_JAW_STOCK",
-      "RIGHT_JAW_STOCK",
-      "PART_REFERENCE",
-      "VISE_KEEPOUT"
+    "coordinate_system": "jaw_setup_wcs: origin at blank top face, on the face edge, Y centred; +X into the jaw; +Z up",
+    "recommended_operations": [
+      "2D Pocket (or Dynamic Mill) on the POCKET chain to the manifest floor depth",
+      "Contour finish pass on the POCKET chain with the cutter diameter from the manifest"
     ]
   },
   "pilot_workflow": {
     "method": "manual_import_and_review",
-    "soft_jaw_plugin": "CloudNC Soft Jaw Designer",
-    "plugin_url": "https://www.cloudnc.com/soft-jaw-designer",
+    "reference_tool": "CloudNC Soft Jaw Designer (manual comparison only)",
     "post_processor": "haas_3x_specific_post_required",
     "automatic_posting_enabled": false,
     "automatic_transfer_to_cnc_enabled": false
   },
   "future_direct_adapter": {
-    "method": "Mastercam SDK add-in",
+    "method": "Mastercam C-Hook / NET-Hook add-in reading the manifest",
     "developer_program_url": "https://www.mastercam.com/community/3rd-party-developers/",
     "status": "not_implemented"
   }
 }
-

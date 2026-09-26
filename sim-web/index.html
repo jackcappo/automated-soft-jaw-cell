@@ -1,77 +1,102 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1117">
-  <title>Soft Jaw Cell Simulator</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1117">
+<title>Soft Jaw Cell Simulator</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">Digital twin / layout prototype</p>
-        <h1>Soft Jaw Cell</h1>
+<main class="app-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Digital twin / replay of the verified plan</p>
+      <h1>Soft Jaw Cell</h1>
+    </div>
+    <div class="topbar-status" id="status-pill">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="run-status">Loading</span>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <aside class="controls" aria-label="Simulation controls">
+      <div class="control-section">
+        <span class="section-label">Job</span>
+        <strong id="job-id">-</strong>
+        <span class="muted" id="job-meta"></span>
       </div>
-      <div class="topbar-status">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span id="run-status">Ready</span>
+
+      <div class="control-section">
+        <label class="section-label" for="scenario">Scenario</label>
+        <select id="scenario"></select>
+        <p class="muted" id="scenario-note"></p>
+        <div class="button-row">
+          <button id="play-button" class="primary" type="button">Run</button>
+          <button id="reset-button" type="button">Reset</button>
+        </div>
+        <label class="speed-row"><span>Speed</span>
+          <select id="speed"><option value="4">4x</option><option value="10" selected>10x</option><option value="30">30x</option><option value="1">1x</option></select>
+        </label>
+        <div id="fault-banner" class="fault-banner" hidden></div>
       </div>
-    </header>
 
-    <section class="workspace">
-      <aside class="controls" aria-label="Simulation controls">
-        <div class="control-section">
-          <span class="section-label">Cell profile</span>
-          <strong>Haas Mini Mill</strong>
-          <span class="muted">B601-DM · 5 in VEVOR vise</span>
-        </div>
-
-        <div class="control-section">
-          <span class="section-label">Sequence</span>
-          <div class="button-row">
-            <button id="play-button" class="primary" type="button">Run cycle</button>
-            <button id="reset-button" type="button">Reset</button>
-          </div>
-          <p id="step-detail" class="step-detail" aria-live="polite">Cell is ready for a simulated cycle.</p>
-        </div>
-
-        <div class="control-section telemetry" aria-label="Cell telemetry">
-          <span class="section-label">Live state</span>
-          <dl>
-            <div><dt>Robot</dt><dd id="robot-state">Idle</dd></div>
-            <div><dt>CNC door</dt><dd id="door-state">Closed</dd></div>
-            <div><dt>Spindle</dt><dd id="spindle-state">Stopped</dd></div>
-            <div><dt>Gripper</dt><dd id="gripper-state">Open</dd></div>
-            <div><dt>Payload</dt><dd id="payload-state">None</dd></div>
-          </dl>
-        </div>
-
-        <details class="control-section joints">
-          <summary>Manual joint control</summary>
-          <p class="muted">Pause the cycle before adjusting joints.</p>
-          <div id="joint-controls"></div>
-        </details>
-
-        <div class="legend control-section">
-          <span class="section-label">Scene</span>
-          <span><i class="swatch robot"></i>B601-DM kinematic model</span>
-          <span><i class="swatch blank"></i>Delrin jaw blanks</span>
-          <span><i class="swatch zone"></i>Robot exchange zone</span>
-        </div>
-      </aside>
-
-      <div class="viewport-wrap">
-        <canvas id="render-canvas" aria-label="Interactive 3D simulation of a B601-DM robot tending a Haas Mini Mill"></canvas>
-        <div class="viewport-help">Drag to orbit · wheel to zoom · right-drag to pan</div>
-        <ol id="timeline" class="timeline" aria-label="Cycle progress"></ol>
+      <div class="control-section telemetry" aria-label="Cell telemetry">
+        <span class="section-label">Live state</span>
+        <dl>
+          <div><dt>State</dt><dd id="t-state">IDLE</dd></div>
+          <div><dt>Jaw</dt><dd id="t-jaw">-</dd></div>
+          <div><dt>Sim time</dt><dd id="t-time">0.0 s</dd></div>
+          <div><dt>Robot at</dt><dd id="t-robot">home</dd></div>
+          <div><dt>CNC door</dt><dd id="t-door">Closed</dd></div>
+          <div><dt>Spindle</dt><dd id="t-spindle">Stopped</dd></div>
+          <div><dt>Vise</dt><dd id="t-vise">Open</dd></div>
+          <div><dt>Gripper holds</dt><dd id="t-hold">-</dd></div>
+        </dl>
       </div>
-    </section>
-  </main>
 
-  <script src="vendor/babylon.js"></script>
-  <script src="app.js"></script>
+      <div class="control-section">
+        <span class="section-label">Plan checks</span>
+        <p class="muted" id="plan-checks"></p>
+      </div>
+
+      <details class="control-section">
+        <summary>Event log</summary>
+        <ol id="event-log" class="event-log"></ol>
+      </details>
+
+      <details class="control-section joints">
+        <summary>Manual joint control</summary>
+        <p class="muted">Pauses playback. Capsules show the collision model used by the planner.</p>
+        <div id="joint-controls"></div>
+      </details>
+
+      <div class="legend control-section">
+        <span class="section-label">Scene</span>
+        <span><i class="swatch robot"></i>B601-DM collision capsules</span>
+        <span><i class="swatch blank"></i>Delrin blank</span>
+        <span><i class="swatch finished"></i>Finished soft jaw</span>
+        <span><i class="swatch zone"></i>Hard jaws, parallel</span>
+        <label class="speed-row"><span id="model-label">Machine model: not found</span><input id="show-model" type="checkbox" checked disabled></label>
+        <p class="muted" id="model-note">Import one with tools/import_machine_model.py. Visual only; collision uses the measured boxes.</p>
+      </div>
+    </aside>
+
+    <div class="viewport-wrap">
+      <canvas id="render-canvas" aria-label="3D replay of the B601-DM tending a Haas Mini Mill"></canvas>
+      <div class="viewport-help">Drag to orbit / wheel to zoom / right-drag to pan</div>
+      <ol id="timeline" class="timeline" aria-label="Cycle progress"></ol>
+    </div>
+  </section>
+</main>
+
+<!-- Babylon.js pinned from the CDN; drop a copy at vendor/babylon.js to run offline. -->
+<script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js"></script>
+<script>window.BABYLON || document.write('<script src="vendor/babylon.js"><\/script>');</script>
+<script src="cell-plan.js"></script>
+<script src="kinematics.js"></script>
+<script src="stl.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
-

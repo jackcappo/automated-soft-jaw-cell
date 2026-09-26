@@ -1,433 +1,402 @@
-/* global BABYLON */
+/* global BABYLON, SoftJawKin, CELL_PLAN */
+/* Replays the motion plan and orchestrator event logs produced by
+ * `python -m softjaw sim`. Nothing here decides motion: every robot pose comes
+ * from the planner's IK paths (collision-checked in Python), and every device
+ * state comes from the orchestrator's logged world snapshots. */
+"use strict";
 
-const canvas = document.getElementById("render-canvas");
+const PLAN = window.CELL_PLAN;
+const MM = 0.001;
+const $ = (id) => document.getElementById(id);
+
+if (!PLAN || !window.BABYLON) {
+  $("run-status").textContent = !PLAN ? "cell-plan.js missing: run python -m softjaw sim" : "Babylon.js failed to load";
+  throw new Error("simulator prerequisites missing");
+}
+
+// ------------------------------------------------------------------ scene
+const canvas = $("render-canvas");
 const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
 const scene = new BABYLON.Scene(engine);
+scene.useRightHandedSystem = true;              // URDF / world frame is right-handed, Z up
 scene.clearColor = new BABYLON.Color4(0.025, 0.04, 0.055, 1);
 
-const camera = new BABYLON.ArcRotateCamera(
-  "camera",
-  -1.02,
-  1.08,
-  2.35,
-  new BABYLON.Vector3(0.1, 0, 0.75),
-  scene
-);
+const camera = new BABYLON.ArcRotateCamera("cam", 0, 0, 2.6, new BABYLON.Vector3(0.0, -0.05, 0.85), scene);
 camera.upVector = new BABYLON.Vector3(0, 0, 1);
-camera.setPosition(new BABYLON.Vector3(-1.75, -2.05, 1.65));
-camera.setTarget(new BABYLON.Vector3(0.15, -0.05, 0.72));
-camera.lowerRadiusLimit = 0.7;
-camera.upperRadiusLimit = 4.5;
+camera.setPosition(new BABYLON.Vector3(-1.55, -1.75, 1.75));
+camera.lowerRadiusLimit = 0.5;
+camera.upperRadiusLimit = 6;
 camera.wheelDeltaPercentage = 0.012;
 camera.panningSensibility = 900;
+camera.minZ = 0.01;
 camera.attachControl(canvas, true);
 
-new BABYLON.HemisphericLight("sky", new BABYLON.Vector3(-0.4, -0.5, 1), scene).intensity = 0.82;
-const workLight = new BABYLON.PointLight("work-light", new BABYLON.Vector3(0.5, -0.4, 1.75), scene);
-workLight.intensity = 65;
-workLight.range = 3;
+new BABYLON.HemisphericLight("sky", new BABYLON.Vector3(-0.3, -0.4, 1), scene).intensity = 0.85;
+const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(0.4, 0.6, -1), scene);
+sun.intensity = 0.55;
 
-const colors = {
-  floor: "#17222b",
-  line: "#334550",
-  machine: "#d9e0e2",
-  machineDark: "#263744",
-  machineGlass: "#47808b",
-  table: "#495963",
-  vise: "#356c9a",
-  robot: "#c9e52d",
-  robotDark: "#171d20",
-  metal: "#aab5b8",
-  blank: "#e6a05d",
-  rack: "#596872",
-  danger: "#ef6464",
-  zone: "#59c7d6"
+function mat(name, hex, alpha = 1, emissive = 0) {
+  const m = new BABYLON.StandardMaterial(name, scene);
+  m.diffuseColor = BABYLON.Color3.FromHexString(hex);
+  m.specularColor = new BABYLON.Color3(0.12, 0.13, 0.14);
+  m.alpha = alpha;
+  if (emissive) m.emissiveColor = BABYLON.Color3.FromHexString(hex).scale(emissive);
+  if (alpha < 1) m.backFaceCulling = false;
+  return m;
+}
+const M = {
+  floor: mat("floor", "#17222b"), machine: mat("machine", "#c9d1d4"), wall: mat("wall", "#c9d1d4", 0.16),
+  table: mat("table", "#495963"), jaw: mat("jaw", "#5d86b5"), stat: mat("stat", "#2a3a46"),
+  robot: mat("robot", "#c9e52d", 0.92), robotDark: mat("robotDark", "#20292e"), blank: mat("blank", "#e6a05d"),
+  finished: mat("finished", "#4fce8b"), door: mat("door", "#47808b", 0.3), spindle: mat("spindle", "#aab5b8"),
+  hot: mat("hot", "#ef6464", 1, 0.5), fault: mat("fault", "#ef6464", 0.95, 0.4),
 };
 
-function material(name, hex, alpha = 1, emissive = 0) {
-  const mat = new BABYLON.StandardMaterial(name, scene);
-  mat.diffuseColor = BABYLON.Color3.FromHexString(hex);
-  mat.specularColor = new BABYLON.Color3(0.15, 0.17, 0.18);
-  mat.alpha = alpha;
-  if (emissive) mat.emissiveColor = BABYLON.Color3.FromHexString(hex).scale(emissive);
-  return mat;
+const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 3.2, height: 2.6 }, scene);
+ground.rotation.x = Math.PI / 2;                  // Babylon ground lies in XZ; turn it into the XY floor
+ground.position.copyFromFloats(0.1, 0, -0.001);
+ground.material = M.floor;
+
+function boxFromMinMax(name, lo, hi, material) {
+  const b = BABYLON.MeshBuilder.CreateBox(name, { size: 1 }, scene);
+  b.scaling.copyFromFloats((hi[0] - lo[0]) * MM, (hi[1] - lo[1]) * MM, (hi[2] - lo[2]) * MM);
+  b.position.copyFromFloats((hi[0] + lo[0]) / 2 * MM, (hi[1] + lo[1]) / 2 * MM, (hi[2] + lo[2]) / 2 * MM);
+  b.material = material;
+  return b;
 }
 
-const mats = Object.fromEntries(Object.entries(colors).map(([key, value]) => [key, material(`mat-${key}`, value)]));
-mats.glass = material("mat-glass", colors.machineGlass, 0.24);
-mats.zone = material("mat-zone", colors.zone, 0.12, 0.08);
-mats.zone.backFaceCulling = false;
+const meshes = {};
+PLAN.boxes.forEach((b) => {
+  if (b.kind === "rack_blank") return;             // rack contents are drawn from the event snapshots
+  const material = b.name.startsWith("front_wall") ? M.wall : b.name === "table" ? M.table
+    : b.name === "spindle_head" ? M.spindle : b.kind === "vise_jaw" ? M.jaw : b.kind === "machine" ? M.machine : M.stat;
+  meshes[b.name] = boxFromMinMax(b.name, b.min, b.max, material);
+});
 
-function box(name, size, position, mat, parent = null) {
-  const mesh = BABYLON.MeshBuilder.CreateBox(name, { size: 1 }, scene);
-  mesh.scaling.copyFromFloats(size[0], size[1], size[2]);
-  mesh.position.copyFromFloats(position[0], position[1], position[2]);
-  mesh.material = mat;
-  if (parent) mesh.parent = parent;
-  return mesh;
-}
+// door panel across the opening between the two side wall pieces
+const wl = PLAN.boxes.find((b) => b.name === "front_wall_left"), wr = PLAN.boxes.find((b) => b.name === "front_wall_right");
+const door = boxFromMinMax("door", [-20, wr.max[1], wl.min[2]], [-10, wl.min[1], wl.max[2]], M.door);
+const doorWidth = (wl.min[1] - wr.max[1]) * MM;
 
-function cylinder(name, diameter, height, position, mat, parent = null) {
-  const mesh = BABYLON.MeshBuilder.CreateCylinder(name, { diameter, height, tessellation: 28 }, scene);
-  mesh.rotation.x = Math.PI / 2;
-  mesh.position.copyFromFloats(position[0], position[1], position[2]);
-  mesh.material = mat;
-  if (parent) mesh.parent = parent;
-  return mesh;
-}
-
-function createGrid() {
-  box("floor", [3.2, 2.5, 0.035], [0, 0, -0.025], mats.floor);
-  const lines = [];
-  for (let x = -1.6; x <= 1.6; x += 0.1) lines.push([new BABYLON.Vector3(x, -1.25, 0), new BABYLON.Vector3(x, 1.25, 0)]);
-  for (let y = -1.25; y <= 1.25; y += 0.1) lines.push([new BABYLON.Vector3(-1.6, y, 0), new BABYLON.Vector3(1.6, y, 0)]);
-  const grid = BABYLON.MeshBuilder.CreateLineSystem("grid", { lines }, scene);
-  grid.color = BABYLON.Color3.FromHexString(colors.line);
-  grid.alpha = 0.22;
-}
-
-createGrid();
-
-function createMachine() {
-  const root = new BABYLON.TransformNode("haas-mini-mill", scene);
-  root.position.copyFromFloats(0.78, 0.18, 0);
-
-  box("machine-back", [0.62, 1.18, 1.56], [0.34, 0, 0.78], mats.machineDark, root);
-  box("machine-left", [0.62, 0.16, 1.56], [0, -0.51, 0.78], mats.machine, root);
-  box("machine-right", [0.62, 0.16, 1.56], [0, 0.51, 0.78], mats.machine, root);
-  box("machine-header", [0.62, 0.86, 0.28], [0, 0, 1.42], mats.machine, root);
-  box("machine-lower", [0.62, 0.86, 0.36], [0, 0, 0.18], mats.machine, root);
-  box("machine-table", [0.48, 0.72, 0.07], [-0.19, 0, 0.67], mats.table, root);
-
-  const spindle = cylinder("spindle", 0.105, 0.35, [-0.04, 0, 1.15], mats.metal, root);
-  spindle.rotation.y = Math.PI / 2;
-
-  const door = box("cnc-door", [0.025, 0.82, 0.78], [-0.325, 0, 0.91], mats.glass, root);
-  door.metadata = { closedY: 0, openY: 0.76 };
-
-  const zone = box("exchange-zone", [0.42, 0.68, 0.56], [-0.42, 0, 0.88], mats.zone, root);
-  zone.isPickable = false;
-
-  const viseRoot = new BABYLON.TransformNode("vevor-vise", scene);
-  viseRoot.parent = root;
-  viseRoot.position.copyFromFloats(-0.22, 0, 0.755);
-  box("vise-body", [0.28, 0.22, 0.08], [0, 0, 0], mats.vise, viseRoot);
-  box("vise-fixed-jaw", [0.045, 0.18, 0.105], [0.095, 0, 0.085], mats.vise, viseRoot);
-  box("vise-moving-jaw", [0.045, 0.18, 0.105], [-0.095, 0, 0.085], mats.vise, viseRoot);
-  box("vise-fixed-soft-jaw", [0.025, 0.125, 0.04], [0.064, 0, 0.137], mats.blank, viseRoot);
-  box("vise-moving-soft-jaw", [0.025, 0.125, 0.04], [-0.064, 0, 0.137], mats.blank, viseRoot);
-
-  return { root, door, viseRoot, exchangeZone: zone };
-}
-
-function createRack() {
-  const root = new BABYLON.TransformNode("blank-rack", scene);
-  root.position.copyFromFloats(-0.48, -0.58, 0);
-  box("rack-base", [0.42, 0.28, 0.05], [0, 0, 0.05], mats.rack, root);
-  box("rack-back", [0.04, 0.28, 0.62], [0.18, 0, 0.34], mats.rack, root);
-  for (let row = 0; row < 3; row += 1) {
-    box(`shelf-${row}`, [0.36, 0.25, 0.025], [0, 0, 0.16 + row * 0.18], mats.rack, root);
-  }
-  const blanks = [];
-  for (let row = 0; row < 3; row += 1) {
-    for (let col = 0; col < 2; col += 1) {
-      const blank = box(`delrin-blank-${row}-${col}`, [0.125, 0.032, 0.04], [-0.07 + col * 0.14, -0.01, 0.205 + row * 0.18], mats.blank, root);
-      blanks.push(blank);
-    }
-  }
-  return { root, blanks, pickup: blanks[4] };
-}
-
-const machine = createMachine();
-const rack = createRack();
-
-function quatFromRpy(rpy) {
-  return BABYLON.Quaternion.RotationYawPitchRoll(rpy[2], rpy[1], rpy[0]);
-}
-
-const jointDefs = [
-  { name: "joint1", xyz: [-0.00008416, 0, 0.08465], rpy: [0, 0, 0], axis: [0, 0, 1], min: -2.8, max: 2.8 },
-  { name: "joint2", xyz: [0.020084, 0.031625, 0.05555], rpy: [-1.5708, 0, 0], axis: [0, 0, -1], min: -3.14, max: 0 },
-  { name: "joint3", xyz: [-0.264, 0, 0], rpy: [0, 0, 0], axis: [0, 0, 1], min: -3.14, max: 0 },
-  { name: "joint4", xyz: [0.2426, -0.054, -0.001625], rpy: [0, 0, 0], axis: [0, 0, 1], min: -1.87, max: 1.57 },
-  { name: "joint5", xyz: [0.078308, -0.0375, -0.03], rpy: [-1.5708, 0, 0], axis: [0, 0, 1], min: -1.57, max: 1.57 },
-  { name: "joint6", xyz: [0.028008, 0, 0.04], rpy: [0, 1.5708, 0], axis: [0, 0, 1], min: -3.14, max: 3.14 }
-];
-
-function createRobot() {
-  const root = new BABYLON.TransformNode("rebot-b601-dm", scene);
-  root.position.copyFromFloats(0.0, -0.46, 0.72);
-  root.rotation.z = 0.18;
-  cylinder("robot-pedestal", 0.23, 0.72, [0, 0, -0.36], mats.machineDark, root);
-  cylinder("robot-base", 0.16, 0.085, [0, 0, 0.04], mats.robotDark, root);
-
-  const joints = [];
-  let parent = root;
-  jointDefs.forEach((def, index) => {
-    const node = new BABYLON.TransformNode(def.name, scene);
-    node.parent = parent;
-    node.position.copyFromFloats(...def.xyz);
-    node.rotationQuaternion = quatFromRpy(def.rpy);
-    node.metadata = { ...def, originQuaternion: node.rotationQuaternion.clone(), angle: 0 };
-    joints.push(node);
-
-    cylinder(`joint-hub-${index + 1}`, index < 3 ? 0.105 : 0.075, index < 3 ? 0.09 : 0.065, [0, 0, 0], mats.robotDark, node);
-    if (index === 1) box("upper-arm", [0.27, 0.055, 0.065], [-0.132, 0, 0], mats.robot, node);
-    if (index === 2) box("forearm", [0.245, 0.055, 0.06], [0.12, -0.027, 0], mats.robot, node);
-    if (index === 3) box("wrist-link", [0.095, 0.052, 0.052], [0.045, -0.019, -0.015], mats.robot, node);
-    if (index === 4) box("wrist-roll", [0.07, 0.05, 0.05], [0.03, 0, 0.02], mats.metal, node);
-    parent = node;
+// ------------------------------------------------------------------ optional machine model
+// sim-web/assets/machine.stl (from tools/import_machine_model.py) or an embedded copy in a
+// bundled page. Purely visual: the planner's collision boxes stay authoritative.
+const machineModel = { mesh: null };
+function buildMachineMesh(buffer, source) {
+  const stl = SoftJawStl.parse(buffer);
+  const pos = new Float32Array(stl.positions.length);
+  for (let i = 0; i < pos.length; i++) pos[i] = stl.positions[i] * MM;
+  const idx = new Uint32Array(stl.count * 3).map((_, i) => i);
+  const normals = [];
+  BABYLON.VertexData.ComputeNormals(pos, idx, normals);
+  const vd = new BABYLON.VertexData();
+  vd.positions = pos; vd.indices = idx; vd.normals = normals;
+  const mesh = new BABYLON.Mesh("machine-model", scene);
+  vd.applyToMesh(mesh);
+  mesh.material = mat("machine-model", "#d8dee0", 0.45);
+  mesh.isPickable = false;
+  machineModel.mesh = mesh;
+  // the detailed model replaces the plain enclosure walls; keep table, vise and spindle boxes
+  PLAN.boxes.filter((b) => b.name.startsWith("front_wall")).forEach((b) => meshes[b.name].setEnabled(false));
+  const box = $("show-model");
+  box.disabled = false;
+  $("model-label").textContent = `Machine model (${stl.count.toLocaleString()} triangles)`;
+  $("model-note").textContent = `Loaded from ${source}. Visual only; collision uses the measured boxes.`;
+  box.addEventListener("change", () => {
+    mesh.setEnabled(box.checked);
+    PLAN.boxes.filter((b) => b.name.startsWith("front_wall")).forEach((b) => meshes[b.name].setEnabled(!box.checked));
   });
+}
+function loadMachineModel() {
+  try {
+    if (window.MACHINE_STL_B64) return buildMachineMesh(SoftJawStl.fromBase64(window.MACHINE_STL_B64), "the bundled page");
+  } catch (err) { console.warn("embedded machine model unusable", err); }
+  if (typeof fetch !== "function" || location.protocol === "file:") return;   // fetch needs a local web server
+  fetch("assets/machine.stl").then((r) => (r.ok ? r.arrayBuffer() : null))
+    .then((buf) => { if (buf) buildMachineMesh(buf, "sim-web/assets/machine.stl"); })
+    .catch(() => {});                                  // no model: plain boxes remain
+}
+loadMachineModel();
 
-  const end = new BABYLON.TransformNode("gripper-tcp", scene);
-  end.parent = parent;
-  end.position.copyFromFloats(0, 0, 0.15539);
-  end.rotationQuaternion = quatFromRpy([0, -1.5708, 3.1415]);
-  cylinder("gripper-base", 0.09, 0.075, [0, 0, 0], mats.robotDark, end);
-  const leftFinger = box("left-finger", [0.12, 0.018, 0.026], [-0.055, 0.044, 0], mats.robotDark, end);
-  const rightFinger = box("right-finger", [0.12, 0.018, 0.026], [-0.055, -0.044, 0], mats.robotDark, end);
+// ------------------------------------------------------------------ robot
+const R = PLAN.robot;
+const radii = PLAN.robot.radii;
+const links = [], joints = [];
+for (let k = 0; k < 7; k++) {
+  const c = BABYLON.MeshBuilder.CreateCylinder(`link${k}`, { diameter: 1, height: 1, tessellation: 20 }, scene);
+  c.material = k === 6 ? M.robotDark : M.robot;
+  c.rotationQuaternion = new BABYLON.Quaternion();
+  links.push(c);
+  const s = BABYLON.MeshBuilder.CreateSphere(`jointball${k}`, { diameter: 1, segments: 12 }, scene);
+  s.material = M.robotDark;
+  s.scaling.setAll(2 * radii[Math.min(k, radii.length - 1)] * MM * 0.98);
+  joints.push(s);
+}
+const fingers = [0, 1].map((i) => {
+  const f = BABYLON.MeshBuilder.CreateBox(`finger${i}`, { size: 1 }, scene);
+  f.material = M.robotDark;
+  f.rotationQuaternion = new BABYLON.Quaternion();
+  return f;
+});
+const G = PLAN.gripper, B = PLAN.blank;
 
-  return { root, joints, end, leftFinger, rightFinger, angles: new Array(6).fill(0), grip: 0 };
+function payloadMesh(name) {
+  const m = BABYLON.MeshBuilder.CreateBox(name, { size: 1 }, scene);
+  m.scaling.copyFromFloats(B.T * MM, B.W * MM, B.H * MM);
+  m.material = M.blank;
+  return m;
+}
+const payloads = { left: payloadMesh("left"), right: payloadMesh("right") };
+
+const UP = new BABYLON.Vector3(0, 1, 0);
+function orientCylinder(mesh, a, b, r) {
+  const va = new BABYLON.Vector3(a[0] * MM, a[1] * MM, a[2] * MM), vb = new BABYLON.Vector3(b[0] * MM, b[1] * MM, b[2] * MM);
+  const d = vb.subtract(va), len = d.length();
+  mesh.position = va.add(vb).scale(0.5);
+  mesh.scaling.copyFromFloats(2 * r * MM, Math.max(len, 1e-4), 2 * r * MM);
+  const dir = len > 1e-9 ? d.scale(1 / len) : UP;
+  const axis = BABYLON.Vector3.Cross(UP, dir);
+  const ang = Math.acos(Math.max(-1, Math.min(1, BABYLON.Vector3.Dot(UP, dir))));
+  mesh.rotationQuaternion = axis.length() < 1e-9 ? (ang > 1 ? BABYLON.Quaternion.RotationAxis(new BABYLON.Vector3(1, 0, 0), Math.PI) : BABYLON.Quaternion.Identity())
+    : BABYLON.Quaternion.RotationAxis(axis.normalize(), ang);
 }
 
-const robot = createRobot();
-
-function setJointAngle(index, angle) {
-  const node = robot.joints[index];
-  const def = node.metadata;
-  const clamped = Math.max(def.min, Math.min(def.max, angle));
-  const axis = new BABYLON.Vector3(...def.axis).normalize();
-  node.rotationQuaternion = def.originQuaternion.multiply(BABYLON.Quaternion.RotationAxis(axis, clamped));
-  robot.angles[index] = clamped;
+function quatFromFrame(T) {
+  // T is row-major with column vectors as axes; Babylon matrices use row vectors, so pass the transpose.
+  const m = BABYLON.Matrix.FromValues(T[0], T[4], T[8], 0, T[1], T[5], T[9], 0, T[2], T[6], T[10], 0, 0, 0, 0, 1);
+  return BABYLON.Quaternion.FromRotationMatrix(m);
 }
 
-function setPose(pose, grip = robot.grip) {
-  pose.forEach((angle, index) => setJointAngle(index, angle));
-  robot.grip = grip;
-  const spread = 0.025 + grip * -0.022;
-  robot.leftFinger.position.y = spread;
-  robot.rightFinger.position.y = -spread;
+let tcpFrame = null;
+function setPose(q, gripClosed) {
+  const F = SoftJawKin.frames(R, q);
+  const P = F.map((T) => [T[3], T[7], T[11]]);
+  for (let k = 0; k < 7; k++) {
+    orientCylinder(links[k], P[k], P[k + 1], radii[Math.min(k, radii.length - 1)]);
+    joints[k].position.copyFromFloats(P[k][0] * MM, P[k][1] * MM, P[k][2] * MM);
+  }
+  const T = F[F.length - 1];
+  tcpFrame = T;
+  const ax = [T[0], T[4], T[8]], fy = [T[1], T[5], T[9]], tcp = [T[3], T[7], T[11]];
+  const half = B.T / 2 + (gripClosed ? 4 + 3 : 18);
+  const q0 = quatFromFrame(T);
+  fingers.forEach((f, i) => {
+    const s = i ? -1 : 1;
+    // finger extends from the tips back toward the flange along -approach
+    const c = [0, 1, 2].map((k) => tcp[k] + s * fy[k] * half - ax[k] * G.finger_length / 2);
+    f.position.copyFromFloats(c[0] * MM, c[1] * MM, c[2] * MM);
+    f.scaling.copyFromFloats(G.finger_length * MM, 6 * MM, G.finger_width * MM);
+    f.rotationQuaternion = q0;
+  });
+  state.q = q.slice();
   updateJointControls();
 }
 
-const poses = {
-  home: [0.1, -1.52, -1.45, -0.15, 0.35, 0],
-  rackApproach: [1.78, -1.35, -1.72, -0.2, 0.55, 0.1],
-  rackPick: [1.86, -1.68, -1.28, -0.35, 0.62, 0.1],
-  rackLift: [1.76, -1.25, -1.62, -0.18, 0.44, 0.1],
-  machineApproach: [-0.22, -1.15, -1.78, 0.1, 0.42, -0.2],
-  machineLoad: [-0.18, -1.52, -1.38, 0.18, 0.62, -0.2]
-};
+// ------------------------------------------------------------------ playback model
+const state = { scenario: "nominal", t: 0, playing: false, speed: 10, q: null, events: [], idx: 0, manual: false };
 
-const sequence = [
-  { label: "Ready", detail: "Robot at safe home; CNC closed and stopped.", pose: poses.home, duration: 500, event: "reset" },
-  { label: "Open door", detail: "Request machine access and confirm the spindle is stopped.", pose: poses.home, duration: 850, event: "doorOpen" },
-  { label: "Approach rack", detail: "Move to the Delrin blank rack approach waypoint.", pose: poses.rackApproach, duration: 1500 },
-  { label: "Pick blank", detail: "Close the gripper on one Delrin jaw blank.", pose: poses.rackPick, grip: 1, duration: 1000, event: "pick" },
-  { label: "Lift", detail: "Clear the rack before traversing toward the machine.", pose: poses.rackLift, grip: 1, duration: 900 },
-  { label: "Enter CNC", detail: "Enter the guarded exchange volume with the door confirmed open.", pose: poses.machineApproach, grip: 1, duration: 1650 },
-  { label: "Load vise", detail: "Place the blank at the vise loading pose.", pose: poses.machineLoad, grip: 0, duration: 1050, event: "place" },
-  { label: "Robot clear", detail: "Retract from the machine and return to the safe home pose.", pose: poses.home, grip: 0, duration: 1700, event: "clear" },
-  { label: "Machine", detail: "Door closed; simulated soft-jaw machining cycle running.", pose: poses.home, grip: 0, duration: 2300, onEnter: "machineStart", event: "machineComplete" },
-  { label: "Unload", detail: "Open the door and retrieve the finished soft jaw.", pose: poses.machineLoad, grip: 1, duration: 1800, event: "unload" },
-  { label: "Return rack", detail: "Return the finished jaw to its rack location.", pose: poses.rackPick, grip: 0, duration: 1800, event: "return" },
-  { label: "Complete", detail: "Robot returns home; simulated job is complete.", pose: poses.home, grip: 0, duration: 1500, event: "complete" }
-];
+function segFor(jaw, from, to) {
+  return (PLAN.segments[jaw] || []).find((s) => s.from === from && s.to === to);
+}
+function jointsAt(jaw, name) {
+  return (PLAN.joints[jaw] && PLAN.joints[jaw][name]) || PLAN.joints.left[name] || PLAN.joints.left.home;
+}
+function samplePath(path, u) {
+  const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+  const x = e * (path.length - 1), i = Math.min(path.length - 2, Math.floor(x)), f = x - i;
+  return path[i].map((v, k) => v + (path[i + 1][k] - v) * f);
+}
 
-const ui = {
-  play: document.getElementById("play-button"),
-  reset: document.getElementById("reset-button"),
-  runStatus: document.getElementById("run-status"),
-  detail: document.getElementById("step-detail"),
-  robot: document.getElementById("robot-state"),
-  door: document.getElementById("door-state"),
-  spindle: document.getElementById("spindle-state"),
-  gripper: document.getElementById("gripper-state"),
-  payload: document.getElementById("payload-state"),
-  timeline: document.getElementById("timeline"),
-  joints: document.getElementById("joint-controls")
-};
+/** Robot moves as [t0, t1, jaw, path] intervals, built from command/ack pairs. */
+function buildMotion(events) {
+  const moves = [];
+  events.forEach((e, i) => {
+    if (e.type === "command" && e.device === "robot") {
+      const ack = events.slice(i + 1).find((a) => a.type === "ack" && a.device === "robot");
+      const seg = segFor(e.jaw, e.frm, e.to);
+      if (ack && seg) moves.push({ t0: e.t, t1: ack.t, jaw: e.jaw, path: seg.path, to: e.to });
+    }
+  });
+  return moves;
+}
 
-sequence.forEach((step, index) => {
-  const item = document.createElement("li");
-  item.dataset.index = String(index);
-  item.innerHTML = `<span></span><small>${step.label}</small>`;
-  ui.timeline.appendChild(item);
+function currentEvent(t) {
+  let e = state.events[0];
+  for (const ev of state.events) { if (ev.t <= t) e = ev; else break; }
+  return e;
+}
+
+function robotPose(t, ev) {
+  const m = state.moves.find((mv) => t >= mv.t0 && t < mv.t1);
+  if (m) return samplePath(m.path, (t - m.t0) / Math.max(1e-6, m.t1 - m.t0));
+  return jointsAt(ev.jaw || "left", ev.world.robot_at).slice();
+}
+
+const slotOf = {};
+Object.entries(PLAN.job.slots).forEach(([side, slot]) => { slotOf[slot] = side; });
+
+function placeBlank(mesh, center, finished) {
+  mesh.setEnabled(true);
+  mesh.position.copyFromFloats(center[0] * MM, center[1] * MM, center[2] * MM);
+  mesh.material = finished ? M.finished : M.blank;
+}
+
+function applyWorld(w, gripClosed) {
+  // door slides sideways, spindle glows while running
+  const tDoor = w.door_open ? doorWidth * 0.95 : 0;
+  door.position.y += ((wr.max[1] + wl.min[1]) / 2 * MM + tDoor - door.position.y) * 0.15;
+  meshes.spindle_head.material = w.spindle ? M.hot : M.spindle;
+  const jm = meshes.hard_jaw_moving;
+  const clampShift = w.clamped ? 6 * MM : 0;       // moving jaw closes the loading gap
+  const jb = PLAN.boxes.find((b) => b.name === "hard_jaw_moving");
+  jm.position.x = (jb.min[0] + jb.max[0]) / 2 * MM + clampShift;
+  Object.values(payloads).forEach((m) => m.setEnabled(false));
+  // rack contents
+  Object.entries(w.rack).forEach(([slot, item]) => {
+    if (!item || item === "unexpected_object") return;
+    const side = item.split("_")[0], c = PLAN.rack_slots[Number(slot)];
+    placeBlank(payloads[side], [c[0], c[1], c[2] + B.H / 2], item.endsWith("finished"));
+  });
+  if (w.vise_holds) {
+    const side = w.vise_holds.split("_")[0], c = PLAN.vise_blank_center;
+    placeBlank(payloads[side], c, w.vise_holds.endsWith("finished"));
+  }
+  if (w.holding && tcpFrame) {
+    const side = w.holding.split("_")[0], fin = w.holding.endsWith("finished");
+    const gy = fin ? (PLAN.job.grasp_y[side] || 0) : 0;
+    const T = tcpFrame, tcp = [T[3], T[7], T[11]];
+    placeBlank(payloads[side], [tcp[0], tcp[1] - gy, tcp[2] + G.finger_grip_depth - B.H / 2], fin);
+  }
+}
+
+// ------------------------------------------------------------------ UI
+const ui = { play: $("play-button"), reset: $("reset-button"), status: $("run-status"), pill: $("status-pill"), scen: $("scenario"), speed: $("speed"),
+  banner: $("fault-banner"), log: $("event-log"), timeline: $("timeline"), joints: $("joint-controls") };
+const DESCR = { nominal: "Full left + right jaw cycle, no faults." };
+
+$("job-id").textContent = PLAN.job.job_id;
+$("job-meta").textContent = `jaw release: ${PLAN.job.release_status} / program ${PLAN.job.program_id} / slots L${PLAN.job.slots.left} R${PLAN.job.slots.right}`;
+$("plan-checks").textContent = `${PLAN.plan_issues.length} reach/collision issues in the plan. Reach margin: vise could sit ${PLAN.reach_margin_mm} mm further inside. `
+  + `Layout uses estimated dimensions until measured.`;
+Object.keys(PLAN.scenarios).forEach((name) => {
+  const o = document.createElement("option");
+  o.value = name;
+  o.textContent = name === "nominal" ? "Nominal cycle" : `Fault: ${name.replaceAll("_", " ")}`;
+  ui.scen.appendChild(o);
 });
 
-jointDefs.forEach((def, index) => {
+R.joints.forEach((j, i) => {
   const row = document.createElement("label");
   row.className = "joint-control";
-  row.innerHTML = `<span>J${index + 1}</span><input type="range" min="${def.min}" max="${def.max}" step="0.01" value="0"><output>0°</output>`;
-  const input = row.querySelector("input");
-  input.addEventListener("input", () => {
-    if (state.playing) pauseCycle();
-    setJointAngle(index, Number(input.value));
-    row.querySelector("output").textContent = `${Math.round(Number(input.value) * 180 / Math.PI)}°`;
+  row.innerHTML = `<span>J${i + 1}</span><input type="range" min="${j.lower}" max="${j.upper}" step="0.01" value="0"><output>0°</output>`;
+  row.querySelector("input").addEventListener("input", (ev) => {
+    state.playing = false; state.manual = true;
+    const q = state.q.slice(); q[i] = Number(ev.target.value);
+    setPose(q, false);
+    refreshButtons();
   });
   ui.joints.appendChild(row);
 });
-
-const state = {
-  playing: false,
-  stepIndex: 0,
-  stepStart: 0,
-  startPose: poses.home.slice(),
-  payload: false,
-  payloadPlaced: false,
-  spindle: false,
-  doorOpen: false
-};
-
 function updateJointControls() {
-  [...ui.joints.querySelectorAll(".joint-control")].forEach((row, index) => {
-    row.querySelector("input").value = String(robot.angles[index]);
-    row.querySelector("output").textContent = `${Math.round(robot.angles[index] * 180 / Math.PI)}°`;
+  [...ui.joints.children].forEach((row, i) => {
+    row.querySelector("input").value = String(state.q[i]);
+    row.querySelector("output").textContent = `${Math.round(state.q[i] * 180 / Math.PI)}°`;
   });
 }
 
-function updateTimeline() {
-  [...ui.timeline.children].forEach((item, index) => {
-    item.classList.toggle("active", index === state.stepIndex);
-    item.classList.toggle("complete", index < state.stepIndex);
+function loadScenario(name) {
+  state.scenario = name;
+  const s = PLAN.scenarios[name];
+  state.events = s.events;
+  state.moves = buildMotion(s.events);
+  state.end = s.events[s.events.length - 1].t;
+  state.t = 0; state.playing = false; state.manual = false;
+  const fault = s.events.find((e) => e.type === "fault");
+  ui.banner.hidden = true;
+  $("scenario-note").textContent = DESCR[name] || `Injected fault: ${name.replaceAll("_", " ")}. Expect SAFE_STOP with no further commands.`;
+  ui.timeline.innerHTML = "";
+  s.events.filter((e) => e.type === "transition").forEach((e) => {
+    const li = document.createElement("li");
+    li.dataset.t = e.t;
+    li.innerHTML = `<span></span><small>${e.to.replaceAll("_", " ")}</small>`;
+    if (e.to === "SAFE_STOP") li.classList.add("fault");
+    ui.timeline.appendChild(li);
   });
+  ui.log.innerHTML = "";
+  state.logged = 0;
+  state.fault = fault;
+  render(0);
+  refreshButtons();
 }
 
-function updateUi() {
-  const step = sequence[state.stepIndex];
-  ui.runStatus.textContent = state.playing ? `Running · ${step.label}` : state.stepIndex === sequence.length - 1 ? "Complete" : "Paused";
-  ui.detail.textContent = step.detail;
-  ui.robot.textContent = state.playing ? "Moving" : "Holding";
-  ui.door.textContent = state.doorOpen ? "Open" : "Closed";
-  ui.spindle.textContent = state.spindle ? "Running (sim)" : "Stopped";
-  ui.gripper.textContent = robot.grip > 0.5 ? "Closed" : "Open";
-  ui.payload.textContent = state.payload ? "Delrin jaw" : state.payloadPlaced ? "In vise" : "None";
-  ui.play.textContent = state.playing ? "Pause" : state.stepIndex === sequence.length - 1 ? "Run again" : "Run cycle";
-  updateTimeline();
+function refreshButtons() {
+  ui.play.textContent = state.playing ? "Pause" : state.t >= state.end ? "Replay" : "Run";
 }
 
-function applyEvent(event) {
-  if (event === "reset") {
-    state.payload = false;
-    state.payloadPlaced = false;
-    state.spindle = false;
-    state.doorOpen = false;
+function render(t) {
+  const ev = currentEvent(t);
+  const w = ev.world;
+  if (!state.manual) setPose(robotPose(t, ev), !!w.holding);
+  applyWorld(w);
+  $("t-state").textContent = ev.type === "transition" ? ev.to : ev.state;
+  $("t-jaw").textContent = ev.jaw || "-";
+  $("t-time").textContent = `${t.toFixed(1)} s`;
+  $("t-robot").textContent = w.robot_at.replaceAll("_", " ");
+  $("t-door").textContent = w.door_open ? "Open" : "Closed";
+  $("t-spindle").textContent = w.alarm ? "ALARM" : w.spindle ? "Running" : "Stopped";
+  $("t-vise").textContent = w.clamped ? "Clamped" : "Open";
+  $("t-hold").textContent = w.holding ? w.holding.replace("_", " ") : "-";
+  const stateName = $("t-state").textContent;
+  ui.status.textContent = state.playing ? `Running / ${stateName}` : stateName === "COMPLETE" ? "Complete" : stateName === "SAFE_STOP" ? "SAFE STOP" : "Paused";
+  ui.pill.classList.toggle("stopped", stateName === "SAFE_STOP");
+  ui.pill.classList.toggle("done", stateName === "COMPLETE");
+  if (state.fault && t >= state.fault.t) {
+    ui.banner.hidden = false;
+    ui.banner.textContent = `SAFE_STOP: ${state.fault.cause.replaceAll("_", " ")}. ${state.fault.detail}. Automatic motion inhibited; operator recovery required.`;
   }
-  if (event === "doorOpen") state.doorOpen = true;
-  if (event === "pick") {
-    state.payload = true;
-    rack.pickup.setEnabled(false);
-  }
-  if (event === "place") {
-    state.payload = false;
-    state.payloadPlaced = true;
-  }
-  if (event === "clear") state.doorOpen = false;
-  if (event === "machineComplete") {
-    state.spindle = false;
-    state.doorOpen = true;
-  }
-  if (event === "unload") {
-    state.payload = true;
-    state.payloadPlaced = false;
-  }
-  if (event === "return") {
-    state.payload = false;
-    rack.pickup.setEnabled(true);
-  }
-  if (event === "complete") state.doorOpen = false;
-}
-
-function startStep(index, now) {
-  state.stepIndex = index;
-  state.stepStart = now;
-  state.startPose = robot.angles.slice();
-  if (sequence[index].onEnter === "machineStart") {
-    state.doorOpen = false;
-    state.spindle = true;
-  }
-  updateUi();
-}
-
-function startCycle() {
-  if (state.stepIndex >= sequence.length - 1) resetCycle();
-  state.playing = true;
-  startStep(Math.max(1, state.stepIndex), performance.now());
-}
-
-function pauseCycle() {
-  state.playing = false;
-  updateUi();
-}
-
-function resetCycle() {
-  state.playing = false;
-  state.stepIndex = 0;
-  state.payload = false;
-  state.payloadPlaced = false;
-  state.spindle = false;
-  state.doorOpen = false;
-  rack.pickup.setEnabled(true);
-  setPose(poses.home, 0);
-  machine.door.position.y = machine.door.metadata.closedY;
-  ui.runStatus.textContent = "Ready";
-  ui.detail.textContent = "Cell is ready for a simulated cycle.";
-  updateUi();
-}
-
-ui.play.addEventListener("click", () => state.playing ? pauseCycle() : startCycle());
-ui.reset.addEventListener("click", resetCycle);
-
-function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-
-function tickSequence(now) {
-  if (!state.playing) return;
-  const step = sequence[state.stepIndex];
-  const progress = Math.min(1, (now - state.stepStart) / step.duration);
-  const e = ease(progress);
-  const pose = step.pose.map((target, index) => state.startPose[index] + (target - state.startPose[index]) * e);
-  const targetGrip = step.grip ?? robot.grip;
-  setPose(pose, targetGrip);
-  if (progress >= 1) {
-    applyEvent(step.event);
-    if (state.stepIndex >= sequence.length - 1) {
-      state.playing = false;
-      updateUi();
-    } else {
-      startStep(state.stepIndex + 1, now);
-    }
+  [...ui.timeline.children].forEach((li, i, arr) => {
+    const t0 = Number(li.dataset.t), t1 = i + 1 < arr.length ? Number(arr[i + 1].dataset.t) : Infinity;
+    li.classList.toggle("active", t >= t0 && t < t1);
+    li.classList.toggle("complete", t >= t1);
+  });
+  while (state.logged < state.events.length && state.events[state.logged].t <= t) {
+    const e = state.events[state.logged++];
+    if (e.type !== "transition" && e.type !== "fault" && e.type !== "command") continue;
+    const li = document.createElement("li");
+    li.className = e.type;
+    li.textContent = `${e.t.toFixed(1)}s ` + (e.type === "transition" ? `-> ${e.to}` : e.type === "fault" ? `FAULT ${e.cause}` : `${e.device} ${e.action}${e.to ? " " + e.to : ""}`);
+    ui.log.appendChild(li);
+    ui.log.scrollTop = ui.log.scrollHeight;
   }
 }
 
-function updateWorld() {
-  const doorTarget = state.doorOpen ? machine.door.metadata.openY : machine.door.metadata.closedY;
-  machine.door.position.y += (doorTarget - machine.door.position.y) * 0.08;
-
-  if (state.payload) {
-    rack.pickup.setEnabled(true);
-    rack.pickup.parent = null;
-    const tcp = robot.end.getAbsolutePosition();
-    rack.pickup.position.copyFrom(tcp.add(new BABYLON.Vector3(-0.07, 0, 0)));
-    rack.pickup.rotationQuaternion = robot.end.absoluteRotationQuaternion?.clone() ?? BABYLON.Quaternion.Identity();
-  } else if (state.payloadPlaced) {
-    rack.pickup.setEnabled(true);
-    rack.pickup.parent = machine.viseRoot;
-    rack.pickup.position.copyFromFloats(0, 0, 0.17);
-    rack.pickup.rotationQuaternion = BABYLON.Quaternion.Identity();
-  } else if (rack.pickup.parent !== rack.root) {
-    rack.pickup.parent = rack.root;
-    rack.pickup.position.copyFromFloats(-0.07, -0.01, 0.565);
-    rack.pickup.rotationQuaternion = BABYLON.Quaternion.Identity();
-  }
-}
-
-setPose(poses.home, 0);
-resetCycle();
-
-engine.runRenderLoop(() => {
-  tickSequence(performance.now());
-  updateWorld();
-  scene.render();
+ui.scen.addEventListener("change", () => loadScenario(ui.scen.value));
+ui.speed.addEventListener("change", () => { state.speed = Number(ui.speed.value); });
+ui.reset.addEventListener("click", () => loadScenario(state.scenario));
+ui.play.addEventListener("click", () => {
+  if (state.t >= state.end) loadScenario(state.scenario);
+  state.manual = false;
+  state.playing = !state.playing;
+  refreshButtons();
 });
 
+let last = performance.now();
+engine.runRenderLoop(() => {
+  const now = performance.now(), dt = (now - last) / 1000;
+  last = now;
+  if (state.playing) {
+    const ev = currentEvent(state.t);
+    const machining = ev.state === "CNC_CYCLE" || (ev.type === "transition" && ev.to === "CYCLE_COMPLETE");
+    state.t = Math.min(state.end, state.t + dt * state.speed * (machining ? 6 : 1));
+    if (state.t >= state.end) state.playing = false;
+    render(state.t);
+    refreshButtons();
+  } else {
+    applyWorld(currentEvent(state.t).world);
+  }
+  scene.render();
+});
 window.addEventListener("resize", () => engine.resize());
+window.__sim = { state, loadScenario, render };   // test hook
+
+loadScenario("nominal");
