@@ -4,6 +4,9 @@ This project defines a simulation-first cell that generates machinable soft-jaw
 geometry from a part pose, machines the jaws, and uses a reBot B601-DM to move
 Delrin blanks between a rack and a CNC machine.
 
+See [`docs/PRD.md`](docs/PRD.md) for the product requirements, acceptance
+criteria, safety gates, and delivery roadmap.
+
 > Status: system specification and MVP contract. No real machine or robot may be
 > driven from this repository until the safety I/O and dry-run acceptance tests
 > below have been implemented and reviewed.
