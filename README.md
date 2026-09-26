@@ -24,6 +24,85 @@ python -m softjaw serve                  # shop web app on http://localhost:8080
 python -m unittest discover -s tests -t .  # 46 tests (~2 min)
 ```
 
+## Running it on another computer
+
+Works on Windows, macOS and Linux. The repository is private, so that computer needs your
+GitHub login.
+
+**1. Install once**
+
+* **Python 3.10 or newer** from python.org. On Windows tick *Add python.exe to PATH* in the
+  installer. If `python` is not found afterwards, use `py` in the commands below.
+* **Git** from git-scm.com (Windows: `winget install --id Git.Git -e`).
+* An internet connection the first time the 3D view opens: Babylon.js loads from
+  jsDelivr. `sim-web/vendor/babylon.js` is the offline fallback.
+
+**2. Download the project once**
+
+```bash
+git clone https://github.com/jackcappo/automated-soft-jaw-cell.git
+cd automated-soft-jaw-cell
+python -m pip install -r requirements.txt
+```
+
+Git opens a browser to sign in to GitHub the first time.
+
+**3a. Shop web app with the live 3D cell (recommended)**
+
+```bash
+python tools/seed_shop_demo.py     # optional: demo jaw sets, programs, jobs, downtime (only on an empty data/ folder)
+python -m softjaw serve            # leave this window open; Ctrl+C stops it
+```
+
+Open <http://localhost:8080>. The control centre shows the 3D cell straight away: idle
+between runs, and live while a run plays. To start one, mark two rack slots as loaded
+(*Blank rack*), then press the start button on a ready jaw set, or let auto-run start it
+inside a downtime window.
+
+* From another PC or tablet on the same network: open `http://<this-computer's-IP>:8080`
+  and allow Python through the firewall when Windows asks. To keep it on this PC only:
+  `python -m softjaw serve --host 127.0.0.1`.
+* Port 8080 taken? `python -m softjaw serve --port 8090`.
+* The app's database, uploads and CAM hot folders live in `data/`. It is not in git, so each
+  computer starts empty. Copy that folder to move your jobs across.
+
+**3b. Standalone simulator only (no shop app)**
+
+```bash
+cd sim-web
+python -m http.server 8070
+```
+
+Open <http://localhost:8070>, pick a scenario (the nominal cycle or one of the injected
+faults) and press *Run*. It replays `sim-web/cell-plan.js`, which is in the repository. After
+changing anything in `config/`, rebuild it from the project folder:
+
+```bash
+python -m softjaw jaws hex_fitting
+python -m softjaw sim
+```
+
+**Getting updates later**
+
+```bash
+git pull
+python -m pip install -r requirements.txt
+```
+
+Then restart `python -m softjaw serve`, and hard-refresh the browser (Ctrl+Shift+R, or
+Cmd+Shift+R on a Mac).
+
+**If something looks wrong**
+
+* The page is blank, or shows old screens: hard-refresh (Ctrl+Shift+R).
+* The 3D view shows "3D view unavailable": check the internet connection (for the 3D
+  library) and that `python -m softjaw serve` is still running, then press *Retry*.
+* The detailed Haas model is missing (plain boxes instead): `sim-web/assets/machine.stl`
+  did not come down with the clone. Re-import it with `tools/import_machine_model.py`
+  (see *Machine model for the simulator*).
+* Check the install: `python -m unittest discover -s tests -t .` should report
+  `OK (skipped=3)` (the skips need Node.js or CadQuery, both optional).
+
 ## What each part does
 
 **Jaw generator** (`softjaw/jawgen.py`). Slices the posed part over the jaw height,
@@ -105,8 +184,10 @@ jaw seat, +X across the jaws, +Z up) and `approved_grip`, then `python -m softja
 auto-detected; use `--front=+y` etc. for the door side), simplifies and places a downloaded
 model in `sim-web/assets/`; the front panel (not a pendant arm or tray sticking out) lands on
 the door plane, and `--lift` raises the model to match the published table height (the
-GrabCAD Haas model needs `--lift 44`). It is visual only and git-ignored because downloaded models
-belong to their authors.
+GrabCAD Haas model needs `--lift 44`). It is visual only. `sim-web/assets/` is git-ignored because
+downloaded models belong to their authors; this private repository includes the imported Haas
+model (force-added) so the 3D view works after a clone. Remove it before making the repository
+public.
 
 ## Layout
 
