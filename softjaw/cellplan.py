@@ -26,7 +26,7 @@ class Box:
     name: str
     lo: np.ndarray
     hi: np.ndarray
-    kind: str = "static"      # static | vise_jaw | rack_blank | machine
+    kind: str = "static"      # static | vise_jaw | rack_blank | machine | cart | cart_caster
 
     def distance(self, p):
         d = np.maximum(np.maximum(self.lo - p, p - self.hi), 0)
@@ -52,7 +52,50 @@ class Cell:
     notes: list = field(default_factory=list)
 
 
-def build_cell(cell_path="config/cells/haas-mini-mill-b601.json", vise_shift=(0.0, 0.0)) -> Cell:
+def cart_layout(cell: dict, tr: Tracker, shift=(0.0, 0.0)):
+    """Robot base, rack origin, home TCP and cart boxes in the world frame.
+
+    The robot and rack are fixed to the cart, so everything here moves with the
+    cart; `shift` offsets the cart from its docked position (the floor dock stays).
+    """
+    cart = cell["cart"]
+    if cart.get("yaw_rad", 0.0) or cart["robot_mount"].get("yaw_rad", 0.0):
+        raise ValueError("cart and robot-mount yaw must be 0: the cell is modelled with axis-aligned boxes")
+    dock_xy = np.array(tr.get(cell, "cart", "docked_position"), float)
+    ox, oy = dock_xy + np.asarray(shift, float)
+    o = np.array([ox, oy, 0.0])
+    D, Wc, t = cart["depth"], cart["width"], cart["frame_tube"]
+    deck = tr.get(cell, "cart", "deck_top_height")
+    deck_lo = deck - cart["deck_thickness"]
+    mount = cart["robot_mount"]
+    base = o + [*tr.get(cell, "cart", "robot_mount", "xy"), deck + mount["riser_height"]]
+    rack_o = o + [*tr.get(cell, "cart", "rack_origin_xy"), deck + cart.get("rack_stand_height", 0.0) + cart["rack_plate_thickness"]]
+    home = o + np.array(cart["home_tcp"], float)
+
+    x0, x1, y0, y1 = ox - D, ox, oy - Wc / 2, oy + Wc / 2
+    ch, hh, s = cart["caster_height"], cart["handle_height"], mount["riser_size"]
+    boxes = [B("cart_deck", (x0, x1), (y0, y1), (deck_lo, deck), "cart"),
+             B("cart_base_frame", (x0, x1), (y0, y1), (ch, ch + t), "cart"),     # doubles as the lower shelf
+             B("robot_riser", (base[0] - s / 2, base[0] + s / 2), (base[1] - s / 2, base[1] + s / 2), (deck, base[2] - 5), "cart")]
+    for tag, lx, ly in (("front_left", x1 - t, y1 - t), ("front_right", x1 - t, y0),
+                        ("back_left", x0, y1 - t), ("back_right", x0, y0)):
+        boxes.append(B(f"cart_leg_{tag}", (lx, lx + t), (ly, ly + t), (ch + t, deck_lo), "cart"))
+        # 125 mm wheel rolling along X, inset so a swivelling caster stays under the frame
+        cx = x1 - 80 if tag.startswith("front") else x0 + 80
+        cy = y1 - 60 if tag.endswith("left") else y0 + 60
+        boxes.append(B(f"cart_caster_{tag}", (cx - 65, cx + 65), (cy - 25, cy + 25), (0, ch), "cart_caster"))
+    # push bar on brackets off the back legs, 60 mm behind the frame
+    hy = Wc / 2 - t / 2
+    boxes += [B("cart_handle_bracket_left", (x0 - 60, x0), (y1 - t / 2 - 10, y1 - t / 2 + 10), (hh - 25, hh), "cart"),
+              B("cart_handle_bracket_right", (x0 - 60, x0), (y0 + t / 2 - 10, y0 + t / 2 + 10), (hh - 25, hh), "cart"),
+              B("cart_handle_bar", (x0 - 60, x0 - 35), (oy - hy, oy + hy), (hh - 25, hh), "cart")]
+    dock = cart["dock"]
+    boxes.append(B("dock_block", (dock_xy[0], dock_xy[0] + 20), (dock_xy[1] - dock["width"] / 2, dock_xy[1] + dock["width"] / 2),
+                   (0, dock["height"])))
+    return base, rack_o, home, boxes
+
+
+def build_cell(cell_path="config/cells/haas-mini-mill-b601.json", vise_shift=(0.0, 0.0), cart_shift=(0.0, 0.0)) -> Cell:
     tr = Tracker()
     cell = load_json(cell_path)
     prof = {k: load_json(v) for k, v in cell["profiles"].items()}
@@ -79,12 +122,12 @@ def build_cell(cell_path="config/cells/haas-mini-mill-b601.json", vise_shift=(0.
     hard_t = tr.get(vise, "robot_machining_setup", "hard_jaw_thickness")
     par = tr.get(vise, "robot_machining_setup", "parallel_height")
     open_extra = tr.get(vise, "robot_machining_setup", "loading_open_gap_extra")
-    base_xyz = tr.get(cell, "robot_base", "xyz")
-    rack_o = np.array(tr.get(cell, "rack", "origin"), float)
+    base_xyz, rack_o, home, cart_boxes = cart_layout(cell, tr, cart_shift)
 
-    # vise at the exchange pose: table jogged toward the door and sideways
-    vx = table_cx - shift_in + vise_shift[0]
-    vy = shift_side + vise_shift[1]
+    # vise at the exchange pose: table jogged toward the door and sideways, vise offset on the table
+    v_off = tr.get(cell, "vise_on_table", "offset_from_table_center")
+    tx, ty = table_cx - shift_in + vise_shift[0], shift_side + vise_shift[1]     # table centre
+    vx, vy = tx + v_off[0], ty + v_off[1]
     seat_z = table_z + seat
     blank_bottom = seat_z + par
     boxes = []
@@ -93,29 +136,33 @@ def build_cell(cell_path="config/cells/haas-mini-mill-b601.json", vise_shift=(0.
               B("front_wall_above_door", (-50, 0), (-800, 800), (door_hi, 1900), "machine"),
               B("front_wall_left", (-50, 0), (hw, 800), (door_lo, door_hi), "machine"),
               B("front_wall_right", (-50, 0), (-800, -hw), (door_lo, door_hi), "machine"),
-              B("table", (vx - tbl_w / 2, vx + tbl_w / 2), (vy - tbl_l / 2, vy + tbl_l / 2), (table_z - 60, table_z), "machine"),
+              B("table", (tx - tbl_w / 2, tx + tbl_w / 2), (ty - tbl_l / 2, ty + tbl_l / 2), (table_z - 60, table_z), "machine"),
               B("vise_body", (vx - env["length"] / 2, vx + env["length"] / 2), (vy - env["width"] / 2, vy + env["width"] / 2), (table_z, seat_z), "machine"),
               B("spindle_head", (table_cx - head_d / 2, table_cx + head_d / 2), (-head_w / 2, head_w / 2), (table_z + nose_max, 1900), "machine"),
               B("hard_jaw_fixed", (vx + T / 2, vx + T / 2 + hard_t), (vy - W / 2, vy + W / 2), (seat_z, seat_z + hard_h), "vise_jaw"),
               B("hard_jaw_moving", (vx - T / 2 - open_extra - hard_t, vx - T / 2 - open_extra), (vy - W / 2, vy + W / 2), (seat_z, seat_z + hard_h), "vise_jaw"),
-              B("parallel", (vx - T / 2, vx + T / 2), (vy - W / 2, vy + W / 2), (seat_z, blank_bottom), "vise_jaw"),
-              B("robot_pedestal", (base_xyz[0] - 60, base_xyz[0] + 60), (base_xyz[1] - 60, base_xyz[1] + 60), (0, base_xyz[2] - 5))]
+              B("parallel", (vx - T / 2, vx + T / 2), (vy - W / 2, vy + W / 2), (seat_z, blank_bottom), "vise_jaw")]
+    boxes += cart_boxes
     pitch, nslot = cell["rack"]["slot_pitch_x"], cell["rack"]["slot_count"]
-    boxes.append(B("rack_plate", (rack_o[0] - 40, rack_o[0] + pitch * (nslot - 1) + 40), (rack_o[1] - W / 2 - 15, rack_o[1] + W / 2 + 15), (rack_o[2] - 20, rack_o[2])))
+    rx, ry = (rack_o[0] - 40, rack_o[0] + pitch * (nslot - 1) + 40), (rack_o[1] - W / 2 - 15, rack_o[1] + W / 2 + 15)
+    boxes.append(B("rack_plate", rx, ry, (rack_o[2] - 20, rack_o[2])))
+    deck_top = cell["cart"]["deck_top_height"]["value"]
+    if rack_o[2] - 20 > deck_top:
+        boxes.append(B("rack_stand", (rx[0] + 20, rx[1] - 20), (ry[0] + 20, ry[1] - 20), (deck_top, rack_o[2] - 20), "cart"))
     slots = []
     for k in range(nslot):
         c = rack_o + np.array([k * pitch, 0, 0])
         slots.append(c)
         boxes.append(B(f"rack_blank_{k}", (c[0] - T / 2, c[0] + T / 2), (c[1] - W / 2, c[1] + W / 2), (c[2], c[2] + H), "rack_blank"))
 
-    arm = Arm(robot, base_xyz, cell["robot_base"].get("yaw_rad", 0.0))
+    arm = Arm(robot, base_xyz, 0.0)
     frames = {"vise_blank_center": np.array([vx, vy, blank_bottom + H / 2]), "vise_blank_top": blank_bottom + H,
               "hard_jaw_top": seat_z + hard_h, "rack_slots": slots, "rack_top": rack_o[2] + H,
               "door_transit": np.array(cell["clearances"]["door_transit"], float),
               "approach": cell["clearances"]["approach_height"], "base": np.array(base_xyz, float),
               "joint_speed": robot.get("commissioning_joint_speed_rad_s", 0.6),
               "load_x_offset": -open_extra / 2,
-              "home": np.array(cell["clearances"]["home_tcp"], float)}
+              "home": home}
     return Cell(cell, arm, boxes, frames, {"T": T, "W": W, "H": H}, grip, tr)
 
 
@@ -153,7 +200,7 @@ def robot_collisions(cell: Cell, q, holding: bool, ignore=(), margin=0.0):
             continue
         d = b.distance(pts) - rad - margin
         bad = d < 0
-        if b.name == "robot_pedestal":
+        if b.name == "robot_riser":
             bad &= np.array([n not in ("link0",) for n in names])
         if bad.any():
             k = int(np.argmin(np.where(bad, d, np.inf)))

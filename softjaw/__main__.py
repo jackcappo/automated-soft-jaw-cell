@@ -5,6 +5,7 @@
   plan  [--slots L R]      robot reach / collision study for the cell layout
   sim   [--job NAME]       plan + run the orchestrator scenarios, write sim-web/cell-plan.js
   bundle [OUT]             one-file simulator page (embeds sim-web/assets/machine.stl if present)
+  serve [--port 8080]      shop web app: jaw sets, CAM hot folders, NC review, downtime, cell runs
 """
 from __future__ import annotations
 
@@ -75,7 +76,14 @@ def main(argv=None):
     p = sub.add_parser("plan"); p.add_argument("--slots", nargs=2, type=int, default=[0, 1])
     s = sub.add_parser("sim"); s.add_argument("--job", default="hex_fitting"); s.add_argument("--slots", nargs=2, type=int, default=[0, 1])
     b = sub.add_parser("bundle"); b.add_argument("out", nargs="?", default=str(ROOT / "output" / "soft-jaw-cell-sim.html"))
+    w = sub.add_parser("serve"); w.add_argument("--port", type=int, default=8080)
+    w.add_argument("--host", default="0.0.0.0", help="0.0.0.0 = reachable from the shop network; 127.0.0.1 = this PC only")
+    w.add_argument("--data", default=str(ROOT / "data"), help="database, uploads and default CAM hot folders")
     a = ap.parse_args(argv)
+    if a.cmd == "serve":
+        from .shop.server import serve
+        serve(a.host, a.port, a.data)
+        return 0
     if a.cmd == "parts":
         sys.path.insert(0, str(ROOT / "tools"))
         import make_examples

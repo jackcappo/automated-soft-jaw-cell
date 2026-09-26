@@ -75,6 +75,20 @@ input[type="range"] { width: 100%; accent-color: var(--yellow); }
 .timeline li.fault span { background: var(--danger); }
 .timeline li.active small { color: var(--text); }
 
+/* embedded in the shop app's run monitor (?embed) */
+body.embed { overflow: hidden; }
+body.embed .topbar, body.embed .controls { display: none; }
+/* always fill the frame, including under 800 px where the standalone page switches to its phone layout */
+body.embed .app-shell { height: 100vh; grid-template-rows: 1fr; }
+body.embed .workspace { grid-template-columns: 1fr; min-height: 0; }
+body.embed .viewport-wrap { min-height: 0; height: 100%; }
+body.embed .timeline small { display: none; }
+body.idle .timeline { display: none; }
+body.embed.load-failed .viewport-wrap::after { content: "3D view failed to load - retrying"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.embed-badge { position: absolute; top: 14px; left: 14px; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(145,162,177,.3); background: rgba(7,11,16,.78); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; pointer-events: none; }
+.embed-badge:empty { display: none; }
+.embed-badge[data-live="1"] { color: #11180a; background: var(--yellow); border-color: transparent; }
+
 @media (max-width: 800px) {
   .app-shell { height: auto; }
   .workspace { grid-template-columns: 1fr; }

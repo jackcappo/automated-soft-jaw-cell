@@ -28,6 +28,47 @@ class KinematicsTests(unittest.TestCase):
             self.assertLess(np.linalg.norm(self.arm.tcp(r["q"])[:3, 3] - tgt), 0.5)
 
 
+class CartTests(unittest.TestCase):
+    def setUp(self):
+        self.cell = C.build_cell()
+        self.boxes = {b.name: b for b in self.cell.boxes}
+
+    def test_robot_and_rack_sit_on_the_deck(self):
+        deck = self.boxes["cart_deck"]
+        for name in ("robot_riser", "rack_plate"):
+            b = self.boxes[name]
+            self.assertEqual(b.lo[2], deck.hi[2], name)
+            self.assertTrue((b.lo[:2] >= deck.lo[:2]).all() and (b.hi[:2] <= deck.hi[:2]).all(), name)
+        self.assertEqual(self.boxes["robot_riser"].hi[2], self.cell.frames["base"][2] - 5)
+
+    def test_vise_sits_on_the_machine_table(self):
+        table, vise = self.boxes["table"], self.boxes["vise_body"]
+        self.assertEqual(vise.lo[2], table.hi[2])
+        centre = (vise.lo + vise.hi) / 2
+        self.assertTrue((centre[:2] > table.lo[:2]).all() and (centre[:2] < table.hi[:2]).all())
+
+    def test_robot_rack_and_home_move_with_the_cart(self):
+        d = np.array([-300.0, 120.0, 0.0])
+        moved = C.build_cell(cart_shift=d[:2])
+        for key in ("base", "home"):
+            np.testing.assert_allclose(moved.frames[key] - self.cell.frames[key], d)
+        np.testing.assert_allclose(np.array(moved.frames["rack_slots"]) - self.cell.frames["rack_slots"], [d] * 6)
+        np.testing.assert_allclose(moved.frames["vise_blank_center"], self.cell.frames["vise_blank_center"])
+        moved_dock = next(b for b in moved.boxes if b.name == "dock_block")
+        np.testing.assert_allclose(moved_dock.lo, self.boxes["dock_block"].lo)     # the floor dock stays put
+
+    def test_undocked_cart_cannot_reach_the_vise(self):
+        c = C.build_cell(cart_shift=(-300.0, 0.0))
+        t = C.waypoint_targets(c, 0)
+        self.assertFalse(c.arm.ik(t["vise_place"], C.DOWN, C.FINGERS_X)["ok"])
+
+    def test_arm_is_checked_against_the_cart(self):
+        top = self.boxes["rack_plate"].hi[2]
+        r = self.cell.arm.ik([-400, -250, top - 10], C.DOWN, C.FINGERS_X)    # gripper down into the cart's rack plate
+        self.assertTrue(r["ok"])
+        self.assertIn("rack_plate", [h[1] for h in C.robot_collisions(self.cell, r["q"], False)])
+
+
 class PlanAndOrchestratorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

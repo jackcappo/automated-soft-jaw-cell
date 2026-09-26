@@ -265,14 +265,19 @@ class Orchestrator:
             self.enter("DOOR_CLOSED_CONFIRMED", side)
             self.cnc.door(False)
 
+            program = job.get("programs", {}).get(side, job["program_id"])
+            cycle_s = job.get("cycle_times", {}).get(side, job["cycle_time_s"])
+            if program != self.cnc.program_id:                     # per-side programs: load this jaw's program
+                self.log("command", device="cnc", action="load_program", program_id=program)
+                self.cnc.program_id = program
             self.enter("CNC_CYCLE", side)
             self.guard_cycle_start()
-            self.cnc.cycle_start(job["program_id"])
-            self.cnc.run_cycle(job["cycle_time_s"])
+            self.cnc.cycle_start(program)
+            self.cnc.run_cycle(cycle_s)
 
             self.enter("CYCLE_COMPLETE", side)
             self.expect(lambda: not self.w.alarm, "cnc_alarm", "CNC alarm active")
-            self.expect(lambda: self.w.cycle_done, "timeout", "cycle complete not received", job["cycle_time_s"] * 0.5)
+            self.expect(lambda: self.w.cycle_done, "timeout", "cycle complete not received", cycle_s * 0.5)
 
             self.enter("SPINDLE_ZERO_CONFIRMED", side)
             self.cnc.request_exchange()

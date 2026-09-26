@@ -20,16 +20,21 @@ def outside_waypoints(cell, joints: dict, wall_x=-50.0):
     return sorted(out)
 
 
+def plan_job(job, cell=None, reach=True):
+    """Motion plan for both jaws of a cell job (its rack slots and finger grasp offsets)."""
+    cell = cell or C.build_cell()
+    jaws = {side: C.plan_jaw(cell, job["slots"][side], grasp_y=job["grasp_y"][side] or 0.0) for side in ("left", "right")}
+    outside = sorted(set(outside_waypoints(cell, jaws["left"]["joints"])) & set(outside_waypoints(cell, jaws["right"]["joints"])))
+    return cell, {"jaws": jaws, "outside_waypoints": outside,
+                  "issues": jaws["left"]["issues"] + jaws["right"]["issues"],
+                  "reach_margin_mm": C.reach_margin() if reach else None,
+                  "unverified_layout": list({(u["profile"], u["field"]): u for u in cell.tracker.unverified}.values())}
+
+
 def build(manifest_path: str, slots=None, cycle_time_s=240.0):
     manifest = json.loads(Path(manifest_path).read_text())
     job = build_job(manifest, slots, cycle_time_s)
-    cell = C.build_cell()
-    jaws = {side: C.plan_jaw(cell, job["slots"][side], grasp_y=job["grasp_y"][side] or 0.0) for side in ("left", "right")}
-    outside = sorted(set(outside_waypoints(cell, jaws["left"]["joints"])) & set(outside_waypoints(cell, jaws["right"]["joints"])))
-    plan = {"jaws": jaws, "outside_waypoints": outside,
-            "issues": jaws["left"]["issues"] + jaws["right"]["issues"],
-            "reach_margin_mm": C.reach_margin(),
-            "unverified_layout": list({(u["profile"], u["field"]): u for u in cell.tracker.unverified}.values())}
+    cell, plan = plan_job(job)
     scenarios = {"nominal": Orchestrator(job, plan).run()}
     for fault in FAULTS:
         trigger = "vise_above" if fault == "comms_loss" else True
@@ -38,6 +43,13 @@ def build(manifest_path: str, slots=None, cycle_time_s=240.0):
 
 
 def export_js(job, cell, plan, scenarios, path=ROOT / "sim-web" / "cell-plan.js"):
+    Path(path).write_text(plan_js(job, cell, plan, scenarios))
+    return path
+
+
+def plan_js(job, cell, plan, scenarios, notes=None) -> str:
+    """The simulator's cell-plan.js for a job, its plan and one or more orchestrator runs.
+    `notes` optionally labels scenarios: {name: {"label": ..., "note": ...}}."""
     robot = cell.arm
     data = {
         "generated_by": "python -m softjaw sim",
@@ -56,7 +68,7 @@ def export_js(job, cell, plan, scenarios, path=ROOT / "sim-web" / "cell-plan.js"
         "plan_issues": plan["issues"],
         "scenarios": {name: {"final_state": r["final_state"], "sim_time_s": r["sim_time_s"],
                              "inventory": r["inventory"], "events": r["events"]} for name, r in scenarios.items()},
+        "scenario_notes": notes or {},
     }
-    Path(path).write_text("// Generated file - do not edit. Rebuild with: python -m softjaw sim\n"
-                          "window.CELL_PLAN = " + json.dumps(data, separators=(",", ":")) + ";\n")
-    return path
+    return ("// Generated file - do not edit. Rebuild with: python -m softjaw sim\n"
+            "window.CELL_PLAN = " + json.dumps(data, separators=(",", ":")) + ";\n")

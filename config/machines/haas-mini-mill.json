@@ -20,21 +20,26 @@
   "spindle": {"taper": "CT40 or BT40", "maximum_speed_rpm": 8000,
               "nose_to_table_min": {"value": 102.0, "status": "published"},
               "nose_to_table_max": {"value": 483.0, "status": "published"}},
+  "layout_drawing": {
+    "url": "https://www.haascnc.com/content/dam/haascnc/pdp_feed/mld/mini%20mill_mld__2_2022.pdf",
+    "title": "Machine Layout Drawing, Mini Mill/Super Mini Mill, 2/10/2022",
+    "note": "Heights assume the suggested 76 mm leveling pad height. Sheet-metal stack-up tolerance +/-13 mm. The drawing gives Y travel 12 in (305 mm); check against travels.y for your machine year."
+  },
   "enclosure_estimates": {
-    "note": "Everything here is an estimate for the reach/collision study. Measure your machine and change status to measured.",
-    "table_top_height_from_floor": {"value": 760.0, "status": "estimated"},
-    "door_opening_width": {"value": 700.0, "status": "estimated"},
-    "door_opening_bottom_from_floor": {"value": 650.0, "status": "estimated"},
-    "door_opening_top_from_floor": {"value": 1450.0, "status": "estimated"},
-    "front_wall_to_table_center": {"value": 302.5, "status": "estimated"},
+    "note": "Values marked published come from the layout drawing; the rest are estimates. Measure your machine and change status to measured.",
+    "table_top_height_from_floor": {"value": 1009.0, "status": "published", "note": "layout drawing p3, TABLE 39.71 in"},
+    "door_opening_width": {"value": 653.0, "status": "published", "note": "layout drawing p3, DOOR WIDTH 25.73 in"},
+    "door_opening_bottom_from_floor": {"value": 890.0, "status": "estimated", "note": "from the GrabCAD model front panel"},
+    "door_opening_top_from_floor": {"value": 1700.0, "status": "estimated", "note": "from the GrabCAD model front panel"},
+    "front_wall_to_table_center": {"value": 595.0, "status": "published", "note": "layout drawing p3, SPINDLE DEPTH 23.43 in; table centred under the spindle"},
     "spindle_head_width": {"value": 160.0, "status": "estimated"},
     "spindle_head_depth": {"value": 145.0, "status": "estimated"}
   },
   "automation": {
     "robot_exchange_pose": {
       "note": "Table jog before robot entry so the vise is out from under the spindle and closer to the door. Uses Y travel toward the door and X travel sideways; keep inside published travels.",
-      "table_shift_toward_door": {"value": 100.0, "status": "assumed"},
-      "table_shift_sideways": {"value": 150.0, "status": "assumed"},
+      "table_shift_toward_door": {"value": 152.0, "status": "assumed", "note": "front end of the 305 mm Y travel on the layout drawing (half travel from centre); the robot cannot reach the vise with less"},
+      "table_shift_sideways": {"value": 0.0, "status": "assumed", "note": "not needed: at the front of Y travel the vise is already ~210 mm clear of the spindle"},
       "spindle_at_z_home": true
     },
     "door_type": "unverified",

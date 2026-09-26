@@ -11,25 +11,71 @@
     "gripper": "config/grippers/placeholder-parallel.json",
     "blank": "config/blanks/delrin-125x45x25.json"
   },
-  "robot_base": {
-    "xyz": {
+  "cart": {
+    "note": "Mobile cart carrying the robot and the blank rack, so the cell rolls away from the machine as one unit. The robot-to-rack geometry is fixed on the cart; only the cart-to-machine position depends on docking.",
+    "frame": "origin on the floor under the centre of the cart's front edge (the edge that docks to the machine); axes parallel to the world frame, so the cart occupies x in [-depth, 0]",
+    "docked_position": {
       "value": [
-        -165.0,
-        0.0,
-        860.0
+        -70.0,
+        -40.0
       ],
-      "status": "estimated"
+      "status": "estimated",
+      "note": "world XY of the cart origin when docked: front edge 20 mm clear of the machine front wall; 40 mm to the operator's right so the tall legs clear the tray left of the door (it starts at y=+300, 780-940 mm up)"
     },
     "yaw_rad": 0.0,
-    "note": "Pedestal centred on the door opening, flange just outside the front face"
+    "depth": 600.0,
+    "width": 660.0,
+    "deck_top_height": {
+      "value": 1130.0,
+      "status": "assumed",
+      "note": "top of the steel deck above the floor, with casters on the floor and leveling feet down; high enough that the robot on a short riser reaches down onto the vise on the machine table (flange 1250 mm: 1200 cannot reach the vise, 1300 lets the elbow hit the wall above the door)"
+    },
+    "deck_thickness": 20.0,
+    "frame_tube": 40.0,
+    "caster_height": 150.0,
+    "handle_height": 1000.0,
+    "handle_note": "push bar on the back legs (the deck is too high to push from)",
+    "dock": {
+      "width": 300.0,
+      "height": 80.0,
+      "note": "floor-mounted docking block at the machine; two tapered pins on the cart front locate into it"
+    },
+    "robot_mount": {
+      "xy": {
+        "value": [
+          -55.0,
+          40.0
+        ],
+        "status": "estimated",
+        "note": "flange centre on the cart, cart frame (on the door centreline when docked); as far forward as the riser allows"
+      },
+      "riser_height": 120.0,
+      "riser_size": 110.0,
+      "yaw_rad": 0.0
+    },
+    "rack_origin_xy": {
+      "value": [
+        -450.0,
+        -210.0
+      ],
+      "status": "estimated",
+      "note": "slot 0 base centre, cart frame; the rack plate sits on the deck (slot base 1150 mm, reachable band about 1000-1250 mm)"
+    },
+    "rack_plate_thickness": 20.0,
+    "home_tcp": [
+      -230.0,
+      -110.0,
+      1250.0
+    ]
   },
   "vise_on_table": {
     "offset_from_table_center": {
       "value": [
-        0.0,
+        -60.0,
         0.0
       ],
-      "status": "assumed"
+      "status": "assumed",
+      "note": "vise mounted 60 mm toward the door from the table centre (overhangs the 318 mm table front edge by ~76 mm) to bring it within the robot's reach"
     },
     "clamp_axis": "world X (fixed jaw toward the back of the machine)",
     "seat_height_above_table": {
@@ -38,14 +84,7 @@
     }
   },
   "rack": {
-    "origin": {
-      "value": [
-        -520.0,
-        -250.0,
-        760.0
-      ],
-      "status": "estimated"
-    },
+    "location": "on the cart deck at cart.rack_origin_xy",
     "slot_count": 6,
     "slot_pitch_x": 60.0,
     "blank_orientation": "standing, thickness along world X, width along world Y (same as in the vise)",
@@ -55,28 +94,23 @@
     "approach_height": 90.0,
     "door_transit": [
       -20.0,
-      60.0,
-      1000.0
+      0.0,
+      1250.0
     ],
-    "home_tcp": [
-      -120.0,
-      -60.0,
-      960.0
-    ],
-    "note": "home keeps every robot link at x < -50 (outside the front wall); both points were chosen from a reachability sweep"
+    "note": "door_transit is in the world frame (it belongs to the door); home is cart.home_tcp and moves with the cart. Docked, home keeps every robot link at x < -50 (outside the front wall); both points were chosen from a reachability sweep"
   },
   "exchange_volume": {
     "x": [
       0,
-      420
+      520
     ],
     "y": [
       -350,
       350
     ],
     "z": [
-      650,
-      1450
+      890,
+      1700
     ]
   }
 }

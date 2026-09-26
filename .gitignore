@@ -14,3 +14,6 @@ output/
 
 # downloaded third-party CAD (e.g. the GrabCAD Haas model) - owned by its authors, do not commit
 sim-web/assets/
+
+# shop app database, uploads and default CAM hot folders (python -m softjaw serve)
+data/

@@ -30,6 +30,11 @@ camera.wheelDeltaPercentage = 0.012;
 camera.panningSensibility = 900;
 camera.minZ = 0.01;
 camera.attachControl(canvas, true);
+if (/[?&]embed\b/.test(typeof location !== "undefined" ? location.search || "" : "")) {
+  // embedded panels are narrower than a full page: fix the horizontal field of view so the whole cell fits across
+  camera.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
+  camera.fov = 1.15;
+}
 
 new BABYLON.HemisphericLight("sky", new BABYLON.Vector3(-0.3, -0.4, 1), scene).intensity = 0.85;
 const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(0.4, 0.6, -1), scene);
@@ -50,11 +55,12 @@ const M = {
   robot: mat("robot", "#c9e52d", 0.92), robotDark: mat("robotDark", "#20292e"), blank: mat("blank", "#e6a05d"),
   finished: mat("finished", "#4fce8b"), door: mat("door", "#47808b", 0.3), spindle: mat("spindle", "#aab5b8"),
   hot: mat("hot", "#ef6464", 1, 0.5), fault: mat("fault", "#ef6464", 0.95, 0.4),
+  cart: mat("cart", "#4a6a80"), deck: mat("deck", "#8a9aa3"), tyre: mat("tyre", "#15191c"), dock: mat("dock", "#d9a93a"),
 };
 
-const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 3.2, height: 2.6 }, scene);
+const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 14, height: 14 }, scene);   // shop floor to the horizon
 ground.rotation.x = Math.PI / 2;                  // Babylon ground lies in XZ; turn it into the XY floor
-ground.position.copyFromFloats(0.1, 0, -0.001);
+ground.position.copyFromFloats(0.4, 0, -0.001);
 ground.material = M.floor;
 
 function boxFromMinMax(name, lo, hi, material) {
@@ -65,11 +71,25 @@ function boxFromMinMax(name, lo, hi, material) {
   return b;
 }
 
+// caster box -> swivel mount plate + fork + wheel rolling along X (cylinder axis is local Y = world Y)
+function casterFromBox(name, lo, hi) {
+  const plate = 12, d = Math.min(hi[0] - lo[0], hi[2] - lo[2] - plate - 10);
+  const cx = (lo[0] + hi[0]) / 2, cy = (lo[1] + hi[1]) / 2;
+  boxFromMinMax(`${name}-plate`, [cx - 45, cy - 45, hi[2] - plate], [cx + 45, cy + 45, hi[2]], M.cart);
+  boxFromMinMax(`${name}-fork`, [cx - 20, lo[1], lo[2] + d / 2], [cx + 20, hi[1], hi[2] - plate], M.cart);
+  const w = BABYLON.MeshBuilder.CreateCylinder(`${name}-wheel`, { diameter: d * MM, height: (hi[1] - lo[1] - 16) * MM, tessellation: 24 }, scene);
+  w.position.copyFromFloats(cx * MM, cy * MM, (lo[2] + d / 2) * MM);
+  w.material = M.tyre;
+  return w;
+}
+
 const meshes = {};
 PLAN.boxes.forEach((b) => {
   if (b.kind === "rack_blank") return;             // rack contents are drawn from the event snapshots
+  if (b.kind === "cart_caster") { meshes[b.name] = casterFromBox(b.name, b.min, b.max); return; }
   const material = b.name.startsWith("front_wall") ? M.wall : b.name === "table" ? M.table
-    : b.name === "spindle_head" ? M.spindle : b.kind === "vise_jaw" ? M.jaw : b.kind === "machine" ? M.machine : M.stat;
+    : b.name === "spindle_head" ? M.spindle : b.kind === "vise_jaw" ? M.jaw : b.kind === "machine" ? M.machine
+    : b.name === "cart_deck" ? M.deck : b.kind === "cart" ? M.cart : b.name === "dock_block" ? M.dock : M.stat;
   meshes[b.name] = boxFromMinMax(b.name, b.min, b.max, material);
 });
 
@@ -96,15 +116,17 @@ function buildMachineMesh(buffer, source) {
   mesh.material = mat("machine-model", "#d8dee0", 0.45);
   mesh.isPickable = false;
   machineModel.mesh = mesh;
-  // the detailed model replaces the plain enclosure walls; keep table, vise and spindle boxes
-  PLAN.boxes.filter((b) => b.name.startsWith("front_wall")).forEach((b) => meshes[b.name].setEnabled(false));
+  // the detailed model replaces the plain enclosure walls and door (it has its own); keep
+  // table, vise and spindle boxes. Door state is still shown in the live-state panel.
+  const plain = () => PLAN.boxes.filter((b) => b.name.startsWith("front_wall")).map((b) => meshes[b.name]).concat([door]);
+  plain().forEach((m) => m.setEnabled(false));
   const box = $("show-model");
   box.disabled = false;
   $("model-label").textContent = `Machine model (${stl.count.toLocaleString()} triangles)`;
   $("model-note").textContent = `Loaded from ${source}. Visual only; collision uses the measured boxes.`;
   box.addEventListener("change", () => {
     mesh.setEnabled(box.checked);
-    PLAN.boxes.filter((b) => b.name.startsWith("front_wall")).forEach((b) => meshes[b.name].setEnabled(!box.checked));
+    plain().forEach((m) => m.setEnabled(!box.checked));
   });
 }
 function loadMachineModel() {
@@ -273,15 +295,20 @@ function applyWorld(w, gripClosed) {
 const ui = { play: $("play-button"), reset: $("reset-button"), status: $("run-status"), pill: $("status-pill"), scen: $("scenario"), speed: $("speed"),
   banner: $("fault-banner"), log: $("event-log"), timeline: $("timeline"), joints: $("joint-controls") };
 const DESCR = { nominal: "Full left + right jaw cycle, no faults." };
+// optional per-scenario {label, note}, e.g. the shop app's replay of one logged run
+const NOTES = PLAN.scenario_notes || {};
+const scenarioLabel = (name) => NOTES[name]?.label || (name === "nominal" ? "Nominal cycle" : `Fault: ${name.replaceAll("_", " ")}`);
+const scenarioNote = (name) => NOTES[name]?.note || DESCR[name] || `Injected fault: ${name.replaceAll("_", " ")}. Expect SAFE_STOP with no further commands.`;
 
 $("job-id").textContent = PLAN.job.job_id;
 $("job-meta").textContent = `jaw release: ${PLAN.job.release_status} / program ${PLAN.job.program_id} / slots L${PLAN.job.slots.left} R${PLAN.job.slots.right}`;
-$("plan-checks").textContent = `${PLAN.plan_issues.length} reach/collision issues in the plan. Reach margin: vise could sit ${PLAN.reach_margin_mm} mm further inside. `
+$("plan-checks").textContent = `${PLAN.plan_issues.length} reach/collision issues in the plan. `
+  + (PLAN.reach_margin_mm != null ? `Reach margin: vise could sit ${PLAN.reach_margin_mm} mm further inside. ` : "")
   + `Layout uses estimated dimensions until measured.`;
 Object.keys(PLAN.scenarios).forEach((name) => {
   const o = document.createElement("option");
   o.value = name;
-  o.textContent = name === "nominal" ? "Nominal cycle" : `Fault: ${name.replaceAll("_", " ")}`;
+  o.textContent = scenarioLabel(name);
   ui.scen.appendChild(o);
 });
 
@@ -313,7 +340,7 @@ function loadScenario(name) {
   state.t = 0; state.playing = false; state.manual = false;
   const fault = s.events.find((e) => e.type === "fault");
   ui.banner.hidden = true;
-  $("scenario-note").textContent = DESCR[name] || `Injected fault: ${name.replaceAll("_", " ")}. Expect SAFE_STOP with no further commands.`;
+  $("scenario-note").textContent = scenarioNote(name);
   ui.timeline.innerHTML = "";
   s.events.filter((e) => e.type === "transition").forEach((e) => {
     const li = document.createElement("li");
@@ -380,11 +407,68 @@ ui.play.addEventListener("click", () => {
   refreshButtons();
 });
 
+// ------------------------------------------------------------------ follow a live run (shop app)
+// ?follow=<run id> tracks the shop app's playback clock (GET /api/runs/<id>/clock) instead of the
+// local play button; ?embed hides the side panel for use inside the shop app's run monitor.
+const params = new URLSearchParams(typeof location !== "undefined" && location.search ? location.search : "");
+if (params.has("embed") && document.body) document.body.classList.add("embed");
+const follow = { run: params.get("follow"), on: false, simT: 0, speed: 1, at: 0, status: null };
+const badge = document.createElement("div");
+badge.className = "embed-badge";
+$("render-canvas")?.parentElement?.appendChild?.(badge);
+async function pollClock() {
+  try {
+    const c = await (await fetch(`/api/runs/${follow.run}/clock`, { cache: "no-store" })).json();
+    Object.assign(follow, { simT: c.sim_t || 0, speed: c.speed || 1, at: performance.now(), status: c.status });
+  } catch { /* keep the last known clock */ }
+}
+if (follow.run && typeof fetch === "function") {
+  follow.on = true;
+  pollClock();
+  setInterval(() => { if (follow.on && ["planning", "running", null].includes(follow.status)) pollClock(); }, 1000);
+}
+// ?idle shows the cell at rest between runs: robot home, door shut, and the shop app's live rack
+// contents (GET /api/rack, one blank per slot).
+const idle = { on: params.has("idle") && !follow.on, rack: null };
+const idleBlanks = PLAN.rack_slots.map((_, i) => { const m = payloadMesh(`idle-slot-${i}`); m.setEnabled(false); return m; });
+async function pollRack() {
+  try { idle.rack = await (await fetch("/api/rack", { cache: "no-store" })).json(); } catch { /* keep the last rack */ }
+}
+if (idle.on && typeof fetch === "function") {
+  pollRack();
+  setInterval(pollRack, 3000);
+  if (document.body) document.body.classList.add("idle");
+}
+function applyIdle() {
+  const w = state.events[0].world;
+  applyWorld({ ...w, rack: {}, holding: null, vise_holds: null, door_open: false, spindle: false, clamped: false, alarm: false });
+  (idle.rack || []).forEach((r) => {
+    const m = idleBlanks[r.slot], c = PLAN.rack_slots[r.slot];
+    if (!m || !c) return;
+    if (r.content === "blank" || r.content === "finished") placeBlank(m, [c[0], c[1], c[2] + B.H / 2], r.content === "finished");
+    else m.setEnabled(false);
+  });
+}
+
+function followTime(now) {
+  const live = follow.status === "running";
+  return Math.min(state.end, follow.simT + (live ? (now - follow.at) / 1000 * follow.speed : 0));
+}
+
 let last = performance.now();
 engine.runRenderLoop(() => {
-  const now = performance.now(), dt = (now - last) / 1000;
+  const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000);   // no jump after a hidden tab
   last = now;
-  if (state.playing) {
+  if (follow.on) {
+    state.playing = false; state.manual = false;
+    state.t = followTime(now);
+    render(state.t);
+    badge.textContent = follow.status === "running" ? "LIVE" : follow.status === "complete" ? "Run complete" : follow.status === "safe_stop" ? "Stopped" : "Waiting";
+    badge.dataset.live = follow.status === "running" ? "1" : "";
+  } else if (idle.on) {
+    applyIdle();
+    badge.textContent = "Idle";
+  } else if (state.playing) {
     const ev = currentEvent(state.t);
     const machining = ev.state === "CNC_CYCLE" || (ev.type === "transition" && ev.to === "CYCLE_COMPLETE");
     state.t = Math.min(state.end, state.t + dt * state.speed * (machining ? 6 : 1));
@@ -397,6 +481,17 @@ engine.runRenderLoop(() => {
   scene.render();
 });
 window.addEventListener("resize", () => engine.resize());
-window.__sim = { state, loadScenario, render };   // test hook
+// the canvas can change size without a window resize (embedded frames, layout settling), so watch it directly
+if (typeof ResizeObserver === "function") new ResizeObserver(() => engine.resize()).observe(canvas);
+// give the WebGL context back as soon as the page goes away (browsers cap live contexts per tab)
+window.addEventListener("pagehide", () => { try { engine.dispose(); } catch { /* already gone */ } });
+canvas.addEventListener("webglcontextlost", () => { window.__simLost = true; });
+window.__sim = {
+  state, loadScenario, render,                        // test hook
+  replay() { follow.on = false; loadScenario(state.scenario); state.playing = true; badge.textContent = "Replay"; badge.dataset.live = ""; refreshButtons(); },
+  followLive() { if (follow.run) { follow.on = true; pollClock(); } },
+  get following() { return follow.on; },
+};
 
-loadScenario("nominal");
+loadScenario(PLAN.scenarios.nominal ? "nominal" : Object.keys(PLAN.scenarios)[0]);
+document.body?.classList?.remove("load-failed");     // started after all, e.g. after a slow download

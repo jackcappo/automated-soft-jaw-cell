@@ -8,6 +8,24 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<script>
+  // embed/idle layout first, so a failed load never shows the full control panel inside the shop app.
+  // Only call it failed once every script has finished loading and app.js still has not started (a slow
+  // first download of the 3D library is not a failure); app.js clears the flag if it starts later anyway.
+  (function () {
+    var q = location.search;
+    if (/[?&]embed\b/.test(q)) document.body.classList.add("embed");
+    if (/[?&]idle\b/.test(q)) document.body.classList.add("idle");
+    function check() {
+      if (window.__sim) return;
+      if (document.readyState !== "complete") return setTimeout(check, 2000);
+      var s = document.getElementById("run-status");
+      if (s) s.textContent = "3D view failed to load";
+      document.body.classList.add("load-failed");
+    }
+    setTimeout(check, 10000);
+  })();
+</script>
 <main class="app-shell">
   <header class="topbar">
     <div>

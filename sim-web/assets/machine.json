@@ -11,6 +11,6 @@
     "width_y": 1513.9,
     "height_z": 2097.0
   },
-  "placement": "floor at Z=0, front face at X=0, centred on Y=0 (door opening)",
+  "placement": "floor at Z=44, front panel at X=0 (parts in front of it reach X=-255), centred on Y=0",
   "use": "visual only; collision uses config/machines/*.json boxes"
 }

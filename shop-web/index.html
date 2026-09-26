@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0b">
+<title>Soft Jaw Cell</title>
+<script>try { const t = localStorage.getItem("sjc-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></symbol>
+  <symbol id="i-jaws" viewBox="0 0 24 24"><path d="M4 7h7v10H4zM13 7h7v10h-7z"/><path d="M7 10.5h2v3H7zM15 10.5h2v3h-2z"/></symbol>
+  <symbol id="i-jobs" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="17" rx="3"/><path d="M8 2.5v3M16 2.5v3M8 11h8M8 15h5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M12 14h2M16 14h.5M8 17.5h2M12 17.5h2"/></symbol>
+  <symbol id="i-runs" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-robot" viewBox="0 0 24 24"><path d="M5 20h9M7 20v-3l3-5 5 2 3-4"/><circle cx="10" cy="12" r="1.3"/><circle cx="15" cy="14" r="1.3"/><path d="M18 10l2-1.5M18 10l1.2 2"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1.5"/><rect x="14" y="4.5" width="4" height="15" rx="1.5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M3.5 8L12 4l8.5 4v8L12 20l-8.5-4z"/><path d="M3.5 8L12 12l8.5-4M12 12v8"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+</svg>
+<div class="shell">
+  <aside class="side">
+    <a class="logo" href="#/" aria-label="Soft Jaw Cell"><svg class="i"><use href="#i-robot"/></svg></a>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="#/" data-route="dash" aria-label="Control centre"><svg class="i"><use href="#i-dash"/></svg><span class="tip">Control centre</span><span class="count" id="nav-alerts" hidden></span></a>
+      <a href="#/jaws" data-route="jaws" aria-label="Jaw sets"><svg class="i"><use href="#i-jaws"/></svg><span class="tip">Jaw sets</span></a>
+      <a href="#/jobs" data-route="jobs" aria-label="Production jobs"><svg class="i"><use href="#i-jobs"/></svg><span class="tip">Production jobs</span></a>
+      <a href="#/schedule" data-route="schedule" aria-label="Downtime and queue"><svg class="i"><use href="#i-cal"/></svg><span class="tip">Downtime &amp; queue</span></a>
+      <a href="#/runs" data-route="runs" aria-label="Cell runs"><svg class="i"><use href="#i-runs"/></svg><span class="tip">Cell runs</span></a>
+      <span class="sep" aria-hidden="true"></span>
+      <a href="#/cam" data-route="cam" aria-label="CAM link"><svg class="i"><use href="#i-cam"/></svg><span class="tip">CAM link</span></a>
+      <a href="#/settings" data-route="settings" aria-label="Settings"><svg class="i"><use href="#i-gear"/></svg><span class="tip">Settings</span></a>
+    </nav>
+    <div class="side-foot"><span class="sim-dot" title="Simulation build: no robot or CNC is connected"><svg class="i"><use href="#i-robot"/></svg></span></div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="left">
+        <span class="title" id="page-title">Control centre</span>
+        <span class="pill" id="cell-pill"><span class="dot" id="cell-dot"></span><span id="cell-text">Connecting</span></span>
+        <span class="pill" id="window-pill"><span id="window-text">-</span></span>
+      </div>
+      <div class="right">
+        <label class="switch" title="Start queued runs automatically inside downtime windows"><input type="checkbox" id="auto-run"> Auto-run</label>
+        <span class="sim-note">Simulated cell</span>
+        <div class="theme" role="group" aria-label="Colour theme">
+          <button type="button" data-theme-btn="dark" aria-label="Dark theme"><svg class="i"><use href="#i-moon"/></svg></button>
+          <button type="button" data-theme-btn="light" aria-label="Light theme"><svg class="i"><use href="#i-sun"/></svg></button>
+        </div>
+      </div>
+    </header>
+    <main class="page" id="view" aria-live="polite"></main>
+  </div>
+</div>
+<dialog id="dialog"></dialog>
+<script src="app.js"></script>
+</body>
+</html>

@@ -7,8 +7,9 @@ What it does
   1. Reads STL (binary or ASCII), or STEP/IGES when CadQuery is installed.
   2. Converts units to mm and rotates so +Z is up (CAD exports are often Y-up).
   3. Simplifies the mesh by vertex clustering so the browser stays fast.
-  4. Places it in the cell frame: floor at Z=0, the front face on the door plane
-     (X=0, machine extends toward +X) and centred on the door opening (Y=0).
+  4. Places it in the cell frame: floor at Z=0, the front panel (the largest
+     door-side face, not a pendant arm sticking out) on the door plane X=0, machine
+     extending toward +X, centred side to side (Y=0).
   5. Writes sim-web/assets/machine.stl + machine.json. sim-web/assets/ is in
      .gitignore because downloaded models belong to their authors.
 
@@ -55,6 +56,23 @@ def guess_units(tris):
     return "mm"
 
 
+def front_plane_x(tris: np.ndarray, bin_mm: float = 10.0) -> float:
+    """X of the front panel: the frontmost -X facing plane with a large share of the area
+    (inner faces such as the column can be bigger). The bounding box is no good here
+    because pendant arms, handles and chip chutes stick out past the panel."""
+    n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    area = np.linalg.norm(n, axis=1) / 2
+    front = n[:, 0] / np.maximum(2 * area, 1e-12) < -0.95
+    x = tris[front].mean(1)[:, 0]
+    if not len(x):
+        return float(tris[..., 0].min())
+    edges = np.arange(x.min(), x.max() + 2 * bin_mm, bin_mm)     # at least one bin when all faces share an x
+    h, _ = np.histogram(x, edges, weights=area[front])
+    k = int(np.nonzero(h >= 0.4 * h.max())[0][0])
+    m = (x >= edges[k]) & (x < edges[k + 1])
+    return float(np.average(x[m], weights=area[front][m]))
+
+
 def simplify(tris: np.ndarray, cell: float) -> np.ndarray:
     """Vertex clustering: snap vertices to a grid, drop collapsed and duplicate triangles."""
     v = tris.reshape(-1, 3)
@@ -79,6 +97,10 @@ def main(argv=None):
     ap.add_argument("--up", choices=list(UP), default="auto", nargs="?", help="source up axis (default: guess)")
     ap.add_argument("--front", choices=["-x", "+x", "-y", "+y"], default="-y",
                     help="side of the (Z-up) model the door is on; default -y, the usual CAD 'front'")
+    ap.add_argument("--align", choices=["panel", "bbox"], default="panel",
+                    help="put the front panel (largest door-side face, default) or the frontmost point at X=0")
+    ap.add_argument("--lift", type=float, default=0.0,
+                    help="raise the model by this many mm, e.g. to match the published table height when the CAD omits leveling pads")
     ap.add_argument("--cell", type=float, default=8.0, help="simplification grid in mm (bigger = lighter)")
     ap.add_argument("--max-triangles", type=int, default=150_000)
     ap.add_argument("--out", default=str(ROOT / "sim-web" / "assets"))
@@ -112,7 +134,8 @@ def main(argv=None):
 
     v = simple.reshape(-1, 3)
     lo, hi = v.min(0), v.max(0)
-    offset = np.array([-lo[0], -(lo[1] + hi[1]) / 2, -lo[2]])
+    front_x = lo[0] if a.align == "bbox" else front_plane_x(tris)
+    offset = np.array([-front_x, -(lo[1] + hi[1]) / 2, -lo[2] + a.lift])
     simple = simple + offset
     size = (hi - lo).round(1)
 
@@ -122,7 +145,8 @@ def main(argv=None):
     info = {"source": src.name, "source_units": units, "source_up_axis": up, "door_side": a.front,
             "triangles_in": n_in, "triangles_out": int(len(simple)), "cluster_mm": round(cell, 2),
             "size_mm": {"depth_x": float(size[0]), "width_y": float(size[1]), "height_z": float(size[2])},
-            "placement": "floor at Z=0, front face at X=0, centred on Y=0 (door opening)",
+            "placement": f"floor at Z={a.lift:g}, {'front panel' if a.align == 'panel' else 'frontmost point'} at X=0 "
+                         f"(parts in front of it reach X={-(front_x - lo[0]):.0f}), centred on Y=0",
             "use": "visual only; collision uses config/machines/*.json boxes"}
     (out / "machine.json").write_text(json.dumps(info, indent=2))
     print(json.dumps(info, indent=2))
